@@ -139,6 +139,69 @@ h2 em{font-style:normal;color:var(--aviso);font-weight:600;font-family:'IBM Plex
 .titulo-folha{font-size:16px;font-weight:600;margin-bottom:4px}
 .sub-folha{font-size:13px;color:var(--fraca);margin-bottom:14px}
 
+
+/* navegação de ciclo */
+.nav{display:flex;align-items:center;gap:6px}
+.nav button{width:32px;height:32px;border-radius:9px;display:flex;align-items:center;justify-content:center;
+  font-size:19px;color:var(--fraca);border:1px solid var(--regua);background:var(--sup)}
+.nav button:disabled{opacity:.3}
+.nav button:active:not(:disabled){background:var(--fundo)}
+.hoje{font-size:11px;color:var(--fraca);border:1px solid var(--regua);border-radius:99px;
+  padding:3px 9px;background:var(--sup);margin-left:4px}
+
+/* faixa de estado do ciclo */
+.estado{display:flex;align-items:center;gap:10px;padding:11px 14px;border-radius:var(--r);
+  margin-bottom:14px;font-size:13.5px;line-height:1.35}
+.estado.conf{background:var(--aviso-luz);color:var(--aviso);border:1px solid #E8D9A8}
+.estado.fech{background:#E7EDF0;color:var(--p0);border:1px solid #C9D9E0}
+.estado.quit{background:#E4EEE7;color:#2C6049;border:1px solid #C3DBCC}
+.estado b{font-weight:700}
+
+.vazio-ciclo{background:var(--sup);border:1px dashed var(--regua);border-radius:var(--r);
+  padding:30px 22px;text-align:center;color:var(--fraca);font-size:14.5px;line-height:1.5}
+
+/* aprovações */
+.aprov{display:flex;flex-direction:column;gap:8px;margin:4px 0 14px}
+.aprov button{display:flex;align-items:center;gap:11px;background:var(--sup);border:1px solid var(--regua);
+  border-radius:12px;padding:12px 14px;font-size:14.5px;width:100%}
+.aprov button.on{border-color:#2C6049;background:#EDF4F0}
+.marca{width:22px;height:22px;border-radius:7px;border:1.5px solid var(--regua);flex:0 0 auto;
+  display:flex;align-items:center;justify-content:center;font-size:13px;color:#fff}
+.aprov button.on .marca{background:#2C6049;border-color:#2C6049}
+.aprov .quando{margin-left:auto;font-size:11.5px;color:var(--fraca);font-family:'IBM Plex Mono',monospace}
+
+/* documento */
+.doc{position:fixed;inset:0;z-index:40;background:var(--fundo);overflow-y:auto;
+  padding:0 0 calc(80px + env(safe-area-inset-bottom))}
+.doc-topo{position:sticky;top:0;z-index:2;background:var(--fundo);border-bottom:1px solid var(--regua);
+  padding:12px 16px;display:flex;align-items:center;gap:10px;max-width:640px;margin:0 auto}
+.doc-topo .t{font-size:15px;font-weight:600;flex:1}
+.doc-corpo{max-width:640px;margin:0 auto;padding:18px 16px}
+.doc h3{font-size:11.5px;letter-spacing:.12em;text-transform:uppercase;color:var(--fraca);
+  font-weight:600;margin:22px 0 9px;border-bottom:1px solid var(--regua);padding-bottom:6px}
+.doc-cab{font-size:22px;font-weight:700;letter-spacing:-.02em}
+.doc-sub{font-size:13px;color:var(--fraca);margin-top:2px}
+.dl{display:flex;justify-content:space-between;gap:10px;padding:5px 0;font-size:14px;border-bottom:1px solid #F1EFEB}
+.dl:last-child{border-bottom:none}
+.dl span:last-child{font-family:'IBM Plex Mono',monospace;flex:0 0 auto}
+.dl.forte{font-weight:600;border-top:1.5px solid var(--tinta);border-bottom:none;margin-top:4px;padding-top:8px}
+.doc-acerto{background:var(--sup);border:1.5px solid var(--tinta);border-radius:var(--r);
+  padding:16px;margin:18px 0;text-align:center}
+.doc-acerto .f{font-size:14.5px;color:var(--fraca)}
+.doc-acerto .v{font-family:'IBM Plex Mono',monospace;font-size:30px;font-weight:600;letter-spacing:-.04em;margin-top:2px}
+.doc-pe{position:fixed;left:0;right:0;bottom:0;background:var(--fundo);border-top:1px solid var(--regua);
+  padding:10px 16px calc(10px + env(safe-area-inset-bottom));display:flex;gap:9px;max-width:640px;margin:0 auto}
+.doc-pe button{flex:1;border-radius:12px;padding:13px;font-size:14.5px;font-weight:600;text-align:center;
+  background:var(--sup);border:1px solid var(--regua)}
+.doc-pe button.forte{background:var(--tinta);color:#F7F5F2;border-color:var(--tinta)}
+
+@media print{
+  body{background:#fff}
+  .app,.barra-baixo,.fundo-folha,.folha,.doc-topo,.doc-pe{display:none!important}
+  .doc{position:static;padding:0;background:#fff}
+  .doc-corpo{max-width:none;padding:0}
+}
+
 .rodape{margin-top:26px;padding-top:16px;border-top:1px solid var(--regua);
   font-size:12.5px;color:var(--fraca);line-height:1.5}
 .rodape b{color:var(--tinta)}
@@ -163,9 +226,18 @@ body.sobrio *{transition:none!important;animation:none!important}
   </div>
 
   <div class="topo">
-    <h1 id="titulo">Fatura</h1>
-    <div class="corte">fecha em<b id="dias">—</b></div>
+    <div>
+      <h1 id="titulo">Fatura</h1>
+      <div class="nav" style="margin-top:6px">
+        <button id="ant" title="mês anterior">‹</button>
+        <button id="prox" title="próximo mês">›</button>
+        <button class="hoje" id="hoje" style="width:auto" hidden>voltar ao mês atual</button>
+      </div>
+    </div>
+    <div class="corte" id="cx-dias">fecha em<b id="dias">—</b></div>
   </div>
+
+  <div id="faixa-estado"></div>
 
   <div class="heroi">
     <div class="totalinha">
@@ -194,6 +266,7 @@ body.sobrio *{transition:none!important;animation:none!important}
   </div>
 
   <div id="secoes"></div>
+  <div id="vazio-ciclo"></div>
 
   <div class="rodape">
     <b>Onde os dados ficam.</b> Só neste aparelho, no navegador. Ainda não há sincronização —
@@ -214,7 +287,21 @@ body.sobrio *{transition:none!important;animation:none!important}
 
 <div class="barra-baixo">
   <button class="fab" id="abrir">＋ Lançar despesa</button>
+  <button class="eu" id="fechar-mes" title="ver a fatura">▤</button>
   <button class="eu" id="trocar"><span class="b" id="eu-cor"></span><span id="eu-nome">—</span></button>
+</div>
+
+<div class="doc" id="doc" hidden>
+  <div class="doc-topo">
+    <button style="font-size:22px;color:var(--fraca);width:30px" id="doc-fechar">×</button>
+    <span class="t" id="doc-titulo">Fatura</span>
+  </div>
+  <div class="doc-corpo" id="doc-corpo"></div>
+  <div class="doc-pe">
+    <button id="doc-copiar">Copiar resumo</button>
+    <button id="doc-imprimir">Imprimir · PDF</button>
+    <button class="forte" id="doc-acao" hidden>—</button>
+  </div>
 </div>
 
 <div class="fundo-folha" id="fundo"></div>
@@ -371,6 +458,7 @@ function vazio() {
   return { esquema: ESQUEMA,
            casa: { id: novoId(), nome: 'Casa', diaCorte: CORTE_PADRAO, membros: [] },
            recorrencias: [], parcelamentos: [], parcelaBase: null, categorias: [],
+           ciclos: {},
            lancamentos: [], transferencias: [], ciclosSemeados: [],
            prefs: { eu: null, sobrio: false } };
 }
@@ -415,15 +503,54 @@ function semear(comp) {
 const MEMBROS = dados.casa.membros;
 const CATEGORIAS = (dados.categorias && dados.categorias.length) ? dados.categorias : CATEGORIAS_PADRAO;
 const CORTE = dados.casa.diaCorte || CORTE_PADRAO;
-const COMP = competenciaAtual();
+const COMP_HOJE = competenciaAtual();
+let COMP = COMP_HOJE;                       // ciclo em exibição
+dados.ciclos = dados.ciclos || {};
 if (MEMBROS.length && !dados.prefs.eu) { dados.prefs.eu = MEMBROS[0]; salvar(); }
-semear(COMP);
+if (MEMBROS.length) semear(COMP);
+
+/* deslocamento em meses sobre uma competência */
+const desloca = (c, n) => {
+  const [a, m] = c.split('-').map(Number);
+  const t = (a * 12 + (m - 1)) + n;
+  return `${Math.floor(t / 12)}-${String(t % 12 + 1).padStart(2, '0')}`;
+};
+const distancia = c => mesesEntre(COMP_HOJE, c);
+const LIMITE = 6;
+
+/* ciclo: aberto → conferencia → fechado → quitado */
+function ciclo(c) {
+  if (!dados.ciclos[c]) {
+    const ap = {}; MEMBROS.forEach(m => ap[m] = null);
+    dados.ciclos[c] = { status: 'aberto', previaEm: null, aprovacoes: ap, fechadoEm: null };
+  }
+  const k = dados.ciclos[c];
+  MEMBROS.forEach(m => { if (!(m in k.aprovacoes)) k.aprovacoes[m] = null; });
+  return k;
+}
+const editavel = c => ciclo(c).status === 'aberto' || ciclo(c).status === 'conferencia';
+const periodo = c => {
+  const ini = desloca(c, -1), [ai, mi] = ini.split('-').map(Number), [af, mf] = c.split('-').map(Number);
+  const dd = n => String(n).padStart(2, '0');
+  return `${dd(CORTE + 1)}/${dd(mi)}/${ai} a ${dd(CORTE)}/${dd(mf)}/${af}`;
+};
+const dataBR = iso => iso ? new Date(iso).toLocaleDateString('pt-BR') : '';
+
+/* alteração em ciclo sob conferência derruba as aprovações (RN-10) */
+function invalidarAprovacoes(c) {
+  const k = ciclo(c);
+  if (k.status !== 'conferencia') return false;
+  const tinha = MEMBROS.some(m => k.aprovacoes[m]);
+  MEMBROS.forEach(m => k.aprovacoes[m] = null);
+  k.previaEm = null;
+  return tinha;
+}
 
 const BRL = c => 'R$ ' + Math.abs(c / 100).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 const $ = id => document.getElementById(id);
 const outro = m => MEMBROS[(MEMBROS.indexOf(m) + 1) % MEMBROS.length] || m;
 const ini = m => 'p' + Math.max(0, MEMBROS.indexOf(m));
-const doCiclo = () => dados.lancamentos.filter(l => l.competencia === COMP && !l.excluidoEm);
+const doCiclo = (c) => dados.lancamentos.filter(l => l.competencia === (c || COMP) && !l.excluidoEm);
 
 const rasc = { pagador: null, icone: '🛒', categoria: 'Mercado', rateio: 'igual', data: hojeISO(), comp: COMP };
 let editando = null;
@@ -435,8 +562,41 @@ function diasAteCorte() {
   return Math.max(0, Math.ceil((alvo - h) / 86400000));
 }
 
+const ROT = { aberto:'Aberta', conferencia:'Em conferência', fechado:'Fechada', quitado:'Quitada' };
+
+function pintarNav() {
+  const d = distancia(COMP);
+  $('ant').disabled = d <= -LIMITE;
+  $('prox').disabled = d >= LIMITE;
+  $('hoje').hidden = d === 0;
+  $('titulo').textContent = tituloComp(COMP);
+  $('cx-dias').hidden = d !== 0;
+  const k = ciclo(COMP), cx = $('faixa-estado');
+  if (k.status === 'aberto') { cx.innerHTML = ''; return; }
+  const cls = k.status === 'conferencia' ? 'conf' : k.status === 'fechado' ? 'fech' : 'quit';
+  const faltam = MEMBROS.filter(m => !k.aprovacoes[m]);
+  const txt = k.status === 'conferencia'
+      ? (faltam.length ? `Prévia emitida. Falta o de acordo de <b>${faltam.join(' e ')}</b>.`
+                       : 'Os dois aprovaram. Pode emitir a fatura definitiva.')
+    : k.status === 'fechado' ? `Fatura fechada em <b>${dataBR(k.fechadoEm)}</b>. Falta registrar o pagamento.`
+    : `Fatura quitada. Pagamento registrado em <b>${dataBR(k.pagoEm)}</b>.`;
+  cx.innerHTML = `<div class="estado ${cls}"><span>${txt}</span></div>`;
+}
+
 function pintar() {
+  pintarNav();
   const L = doCiclo();
+  if (!L.length) {
+    ['heroi'].forEach(c => document.querySelector('.' + c).hidden = true);
+    $('secoes').innerHTML = '';
+    $('vazio-ciclo').innerHTML = `<div class="vazio-ciclo">Nada registrado em ${tituloComp(COMP).toLowerCase()}.<br>
+      ${distancia(COMP) < 0 ? 'Meses anteriores à instalação do app ficam na planilha.' : 'Ainda não há lançamentos neste ciclo.'}</div>`;
+    $('abrir').hidden = !editavel(COMP);
+    return;
+  }
+  document.querySelector('.heroi').hidden = false;
+  $('vazio-ciclo').innerHTML = '';
+  $('abrir').hidden = !editavel(COMP);
   const a = apurar(L, dados.transferencias, MEMBROS, COMP);
   const ac = gerarAcerto(a.saldo, MEMBROS)[0];
   const est = L.filter(l => l.estimado), conf = L.filter(l => !l.estimado);
@@ -468,13 +628,19 @@ function pintar() {
   }).join('');
 
   let html = '';
+  if (ciclo(COMP).status === 'aberto' || ciclo(COMP).status === 'conferencia') {
+    html += `<h2><span>&nbsp;</span><em style="color:var(--fraca)"></em></h2>`.replace(/<h2>.*<\/h2>/, '');
+  }
   if (est.length) html += `<h2><span>A confirmar · ${est.length}</span><em>${BRL(sE)}</em></h2>
     <div class="lista">${est.map(l => linha(l, true)).join('')}</div>`;
   html += `<h2><span>Confirmados · ${conf.length}</span><em style="color:var(--fraca)">${BRL(sC)}</em></h2>
     <div class="lista">${conf.length ? [...conf].reverse().map(l => linha(l, false)).join('')
       : '<div style="padding:22px;text-align:center;color:var(--fraca);font-size:14.5px">Nada confirmado ainda.</div>'}</div>`;
   $('secoes').innerHTML = html;
-  $('secoes').querySelectorAll('[data-id]').forEach(b => b.onclick = () => abrirFolha(b.dataset.id));
+  $('secoes').querySelectorAll('[data-id]').forEach(b => b.onclick = () => {
+    if (!editavel(COMP)) { alert('Esta fatura já foi fechada. Correções entram como ajuste no mês seguinte.'); return; }
+    abrirFolha(b.dataset.id);
+  });
 }
 
 function linha(l, estimado) {
@@ -579,15 +745,143 @@ function gravar() {
       criadoPor: dados.prefs.eu, criadoEm: agora(), atualizadoEm: agora(), excluidoEm: null
     });
   }
+  const caiu = invalidarAprovacoes(COMP);
   salvar(); fecharFolha(); pintar();
+  if (caiu) alert('A fatura mudou. As marcações de "de acordo" foram desfeitas e precisam ser dadas de novo.');
   if (!dados.prefs.sobrio && navigator.vibrate) navigator.vibrate(12);
 }
 
 function remover() {
   if (!editando) return;
   editando.excluidoEm = agora(); editando.atualizadoEm = agora();
+  invalidarAprovacoes(COMP);
   salvar(); fecharFolha(); pintar();
 }
+
+
+/* ═══ Fechamento: prévia, definitiva, pagamento ═══ */
+function resumoTexto(c) {
+  const L = doCiclo(c), a = apurar(L, dados.transferencias, MEMBROS, c);
+  const ac = gerarAcerto(a.saldo, MEMBROS)[0], k = ciclo(c);
+  const est = L.filter(l => l.estimado);
+  let t = `${tituloComp(c).toUpperCase()}/${c.split('-')[0]}\n`;
+  t += `Ciclo de ${periodo(c)} · ${ROT[k.status].toLowerCase()}\n\n`;
+  t += `Total do mês: ${BRL(a.total)} (${L.length} lançamentos)\n`;
+  if (est.length) t += `Atenção: ${BRL(est.reduce((s,l)=>s+l.valorCent,0))} ainda são estimativa (${est.length} itens).\n`;
+  t += `\n`;
+  MEMBROS.forEach(m => {
+    const sd = a.saldo[m];
+    t += `${m} — pagou ${BRL(a.desembolso[m])} · deve ${BRL(a.cota[m])} · ${sd>0?'a receber':sd<0?'a transferir':'quite'} ${BRL(sd)}\n`;
+  });
+  t += `\n>>> ${ac ? `${ac.de} transfere a ${ac.para} ${BRL(ac.valorCent)}` : 'Nada a acertar'}\n\nLANÇAMENTOS\n`;
+  L.forEach(l => t += `${l.icone} ${l.descricao}${l.parcela?' ('+l.parcela+')':''} — ${BRL(l.valorCent)} — ${l.pagador}${l.estimado?' [estimado]':''}\n`);
+  return t;
+}
+
+function pintarDoc(c) {
+  const L = doCiclo(c), a = apurar(L, dados.transferencias, MEMBROS, c);
+  const ac = gerarAcerto(a.saldo, MEMBROS)[0], k = ciclo(c);
+  const est = L.filter(l => l.estimado);
+  const pago = (dados.transferencias||[]).find(t => t.competencia === c && t.finalidade === 'acerto');
+
+  let h = `<div class="doc-cab">${tituloComp(c)} de ${c.split('-')[0]}</div>
+    <div class="doc-sub">Ciclo de ${periodo(c)} · ${ROT[k.status]}${k.previaEm?' · prévia de '+dataBR(k.previaEm):''}</div>`;
+
+  if (est.length) h += `<div class="estado conf" style="margin-top:14px"><span>
+    <b>Provisória.</b> ${BRL(est.reduce((s,l)=>s+l.valorCent,0))} em ${est.length} estimativa${est.length>1?'s':''}
+    ainda por confirmar. A definitiva só sai com todas confirmadas.</span></div>`;
+
+  h += `<h3>Apuração</h3><div class="dl"><span>Total do mês · ${L.length} lançamentos</span><span>${BRL(a.total)}</span></div>`;
+  MEMBROS.forEach(m => {
+    const sd = a.saldo[m];
+    h += `<div class="dl"><span><b>${m}</b> — pagou</span><span>${BRL(a.desembolso[m])}</span></div>
+          <div class="dl"><span>${m} — deve</span><span>${BRL(a.cota[m])}</span></div>
+          <div class="dl forte"><span>${m} — ${sd>0?'a receber':sd<0?'a transferir':'quite'}</span><span>${BRL(sd)}</span></div>`;
+  });
+
+  h += `<div class="doc-acerto"><div class="f">${ac ? `${ac.de} transfere a ${ac.para}` : 'Nada a acertar'}</div>
+    <div class="v">${BRL(ac ? ac.valorCent : 0)}</div></div>`;
+
+  if (k.status === 'conferencia') {
+    h += `<h3>De acordo</h3><div class="aprov">`;
+    MEMBROS.forEach(m => h += `<button class="${k.aprovacoes[m]?'on':''}" data-ap="${m}">
+      <span class="marca">${k.aprovacoes[m]?'✓':''}</span><span>${m} conferiu e concorda</span>
+      <span class="quando">${k.aprovacoes[m]?dataBR(k.aprovacoes[m]):'—'}</span></button>`);
+    h += `</div><div style="font-size:12.5px;color:var(--fraca);line-height:1.45">
+      Enquanto não há sincronização, marque aqui o de acordo que a outra pessoa der por mensagem.
+      Qualquer alteração num lançamento derruba as duas marcações.</div>`;
+  } else if (k.status !== 'aberto') {
+    h += `<h3>De acordo</h3>`;
+    MEMBROS.forEach(m => h += `<div class="dl"><span>${m}</span><span>${dataBR(k.aprovacoes[m]) || '—'}</span></div>`);
+  }
+
+  if (pago) h += `<h3>Pagamento</h3>
+    <div class="dl"><span>${pago.de} pagou a ${pago.para}</span><span>${BRL(pago.valorCent)}</span></div>
+    <div class="dl"><span>Data</span><span>${dataBR(pago.data)}</span></div>
+    ${pago.obs?`<div class="dl"><span>Observação</span><span>${pago.obs}</span></div>`:''}`;
+
+  h += `<h3>Lançamentos</h3>`;
+  L.forEach(l => h += `<div class="dl"><span>${l.icone} ${l.descricao}${l.parcela?' · '+l.parcela:''} — ${l.pagador}${l.estimado?' · estimado':''}</span><span>${BRL(l.valorCent)}</span></div>`);
+
+  $('doc-corpo').innerHTML = h;
+  $('doc-titulo').textContent = `${tituloComp(c)} · ${ROT[k.status]}`;
+
+  $('doc-corpo').querySelectorAll('[data-ap]').forEach(b => b.onclick = () => {
+    const m = b.dataset.ap;
+    k.aprovacoes[m] = k.aprovacoes[m] ? null : agora();
+    salvar(); pintarDoc(c); pintar();
+  });
+
+  const acao = $('doc-acao');
+  const todos = MEMBROS.every(m => k.aprovacoes[m]);
+  if (k.status === 'aberto') {
+    acao.hidden = false; acao.textContent = 'Emitir prévia';
+    acao.onclick = () => { k.status = 'conferencia'; k.previaEm = agora(); salvar(); pintarDoc(c); pintar(); };
+  } else if (k.status === 'conferencia' && todos && !est.length) {
+    acao.hidden = false; acao.textContent = 'Emitir definitiva';
+    acao.onclick = () => { k.status = 'fechado'; k.fechadoEm = agora(); salvar(); pintarDoc(c); pintar(); };
+  } else if (k.status === 'fechado') {
+    acao.hidden = false; acao.textContent = 'Registrar pagamento';
+    acao.onclick = () => registrarPagamento(c, ac);
+  } else acao.hidden = true;
+}
+
+function registrarPagamento(c, ac) {
+  if (!ac) { ciclo(c).status = 'quitado'; ciclo(c).pagoEm = agora(); salvar(); pintarDoc(c); pintar(); return; }
+  const v = prompt(`Quanto ${ac.de} transferiu para ${ac.para}?`, (ac.valorCent/100).toFixed(2).replace('.', ','));
+  if (v === null) return;
+  const cents = cent(parseFloat(String(v).replace(/\./g,'').replace(',', '.')));
+  if (!cents || cents <= 0) { alert('Valor inválido.'); return; }
+  const d = prompt('Data do pagamento (dd/mm/aaaa):', new Date().toLocaleDateString('pt-BR'));
+  if (d === null) return;
+  const [dd, mm, aa] = String(d).split('/');
+  const iso = (aa && mm && dd) ? `${aa}-${mm.padStart(2,'0')}-${dd.padStart(2,'0')}` : hojeISO();
+  const obs = prompt('Observação (opcional):', '') || '';
+  dados.transferencias = dados.transferencias || [];
+  dados.transferencias.push({ id: novoId(), de: ac.de, para: ac.para, valorCent: cents,
+    data: iso, competencia: c, finalidade: 'acerto', obs, considerar: true,
+    criadoPor: dados.prefs.eu, criadoEm: agora() });
+  const k = ciclo(c); k.status = 'quitado'; k.pagoEm = iso;
+  salvar(); pintarDoc(c); pintar();
+  if (cents !== ac.valorCent) alert('Registrado. O valor pago difere do apurado — a diferença fica visível na fatura.');
+}
+
+function abrirDoc(c) { pintarDoc(c); $('doc').hidden = false; }
+
+$('doc-fechar').onclick = () => { $('doc').hidden = true; };
+$('doc-imprimir').onclick = () => window.print();
+$('doc-copiar').onclick = async () => {
+  const t = resumoTexto(COMP);
+  try {
+    if (navigator.share) { await navigator.share({ title: 'Fatura da Casa', text: t }); return; }
+    await navigator.clipboard.writeText(t); alert('Resumo copiado. Cole na conversa.');
+  } catch (e) { prompt('Copie o texto:', t); }
+};
+
+$('ant').onclick = () => { COMP = desloca(COMP, -1); if (MEMBROS.length && distancia(COMP) >= 0) semear(COMP); salvar(); pintar(); };
+$('prox').onclick = () => { COMP = desloca(COMP, 1); if (MEMBROS.length) semear(COMP); salvar(); pintar(); };
+$('hoje').onclick = () => { COMP = COMP_HOJE; pintar(); };
+$('fechar-mes').onclick = () => abrirDoc(COMP);
 
 $('abrir').onclick = () => abrirFolha();
 $('fundo').onclick = fecharFolha;
