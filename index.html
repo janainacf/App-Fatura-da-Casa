@@ -40,7 +40,7 @@ button{font:inherit;color:inherit;border:none;background:none;cursor:pointer;tex
 
 .heroi{background:var(--sup);border-radius:var(--r);padding:20px 18px 4px;
   box-shadow:0 1px 2px rgba(35,33,32,.05),0 8px 24px -12px rgba(35,33,32,.14)}
-.totalinha{display:flex;justify-content:space-between;align-items:baseline;gap:10px;
+.totalinha{display:flex;justify-content:space-between;align-items:baseline;gap:10px;flex-wrap:wrap;
   padding-bottom:12px;margin-bottom:14px;border-bottom:1px solid var(--regua)}
 .totalinha .rot{font-size:12px;letter-spacing:.09em;text-transform:uppercase;color:var(--fraca);font-weight:600}
 .totalinha .qtd{font-size:12px;color:var(--fraca)}
@@ -52,13 +52,20 @@ button{font:inherit;color:inherit;border:none;background:none;cursor:pointer;tex
 .valor{font-family:'IBM Plex Mono',monospace;font-size:clamp(34px,10.5vw,46px);font-weight:600;
   letter-spacing:-.045em;line-height:1.05;margin:3px 0 16px}
 .provisorio{font-size:12.5px;color:var(--aviso);margin:-10px 0 16px;line-height:1.35}
-.pessoas{display:flex;border-top:1px solid var(--regua)}
-.pes{flex:1;min-width:0;padding:14px 0 16px}
-.pes+.pes{border-left:1px solid var(--regua);padding-left:14px}
+.pessoas{display:flex;flex-direction:column;border-top:1px solid var(--regua)}
+.pes{flex:1;min-width:0;padding:12px 0}
+.pes+.pes{border-top:1px solid #F1EFEB}
+@media(min-width:430px){
+  .pessoas{flex-direction:row}
+  .pes{padding:14px 0 16px}
+  .pes+.pes{border-left:1px solid var(--regua);border-top:none;padding-left:14px}
+}
 .pes .nome{font-size:12px;font-weight:600;letter-spacing:.05em;text-transform:uppercase;margin-bottom:7px}
 .pes.p0 .nome{color:var(--p0)} .pes.p1 .nome{color:var(--p1)}
-.pes .l{display:flex;justify-content:space-between;gap:8px;font-size:13.5px;color:var(--fraca);padding:1.5px 0}
-.pes .l span:last-child{font-family:'IBM Plex Mono',monospace;color:var(--tinta);flex:0 0 auto}
+.pes .l{display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap;
+  font-size:13.5px;color:var(--fraca);padding:2px 0}
+.pes .l span:first-child{min-width:0}
+.pes .l span:last-child{font-family:'IBM Plex Mono',monospace;color:var(--tinta);flex:0 0 auto;margin-left:auto}
 .pes .l.s{margin-top:5px;padding-top:6px;border-top:1px solid #F1EFEB}
 .pes .l.s span{font-weight:600} .pes .l.s span:first-child{color:var(--tinta)}
 
@@ -66,33 +73,37 @@ h2{font-size:12px;letter-spacing:.1em;text-transform:uppercase;color:var(--fraca
   margin:26px 0 10px;display:flex;justify-content:space-between;align-items:baseline;gap:10px}
 h2 em{font-style:normal;color:var(--aviso);font-weight:600;font-family:'IBM Plex Mono',monospace}
 .lista{background:var(--sup);border-radius:var(--r);overflow:hidden}
-.item{display:flex;align-items:center;gap:12px;padding:12px 14px;border-bottom:1px solid #F1EFEB;width:100%;
+.item{display:flex;align-items:flex-start;gap:12px;padding:12px 14px;border-bottom:1px solid #F1EFEB;width:100%;
   animation:entra .3s cubic-bezier(.32,.72,.3,1) both}
 .item:last-child{border-bottom:none}
 .item.est{background:var(--aviso-luz)}
 @keyframes entra{from{opacity:0;transform:translateY(-6px)}to{opacity:1;transform:none}}
 .tag{flex:0 0 auto;width:34px;height:34px;border-radius:9px;display:flex;align-items:center;
-  justify-content:center;font-size:17px}
+  justify-content:center;font-size:17px;margin-top:2px}
 .tag.p0{background:var(--p0-luz)} .tag.p1{background:var(--p1-luz)}
 .info{flex:1;min-width:0}
 .info .d{font-size:15px;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.info .m{font-size:12.5px;color:var(--fraca);display:flex;gap:6px;align-items:center}
+.info .m{font-size:12.5px;color:var(--fraca);display:flex;gap:5px;align-items:center;
+  flex-wrap:wrap;line-height:1.35;margin-top:1px}
 .dot{width:5px;height:5px;border-radius:99px;flex:0 0 auto}
 .dot.p0{background:var(--p0)} .dot.p1{background:var(--p1)}
 .selo-est{font-size:11px;font-weight:600;color:var(--aviso);letter-spacing:.04em;text-transform:uppercase}
-.vlr{font-family:'IBM Plex Mono',monospace;font-size:15px;font-weight:500;flex:0 0 auto}
+.vlr{font-family:'IBM Plex Mono',monospace;font-size:15px;font-weight:500;flex:0 0 auto;
+  padding-top:8px;white-space:nowrap}
 .vlr.est{color:var(--aviso)}
 
 .barra-baixo{position:fixed;left:0;right:0;bottom:0;z-index:20;
-  padding:10px 16px calc(10px + env(safe-area-inset-bottom));
+  padding:10px 14px calc(10px + env(safe-area-inset-bottom));
   background:linear-gradient(to top,var(--fundo) 62%,rgba(240,238,233,0));
-  display:flex;gap:10px;max-width:520px;margin:0 auto}
-.fab{flex:1;background:var(--tinta);color:#F7F5F2;border-radius:13px;padding:15px;font-size:16px;
-  font-weight:600;display:flex;align-items:center;justify-content:center;gap:9px;
+  display:flex;gap:8px;max-width:520px;margin:0 auto}
+.fab{flex:1;min-width:0;background:var(--tinta);color:#F7F5F2;border-radius:13px;padding:14px 10px;
+  font-size:clamp(13.5px,4vw,16px);white-space:nowrap;overflow:hidden;
+  font-weight:600;display:flex;align-items:center;justify-content:center;gap:7px;
   box-shadow:0 6px 18px -6px rgba(35,33,32,.45);transition:transform .12s}
 .fab:active{transform:scale(.975)}
 .eu{flex:0 0 auto;background:var(--sup);border:1px solid var(--regua);border-radius:13px;
-  padding:0 15px;font-size:13px;font-weight:600;display:flex;align-items:center;gap:7px}
+  padding:0 12px;font-size:clamp(11px,3.2vw,13px);font-weight:600;display:flex;align-items:center;
+  gap:6px;white-space:nowrap}
 .eu .b{width:9px;height:9px;border-radius:99px}
 
 .fundo-folha{position:fixed;inset:0;background:rgba(28,26,25,.42);z-index:30;opacity:0;
@@ -181,9 +192,11 @@ h2 em{font-style:normal;color:var(--aviso);font-weight:600;font-family:'IBM Plex
   font-weight:600;margin:22px 0 9px;border-bottom:1px solid var(--regua);padding-bottom:6px}
 .doc-cab{font-size:22px;font-weight:700;letter-spacing:-.02em}
 .doc-sub{font-size:13px;color:var(--fraca);margin-top:2px}
-.dl{display:flex;justify-content:space-between;gap:10px;padding:5px 0;font-size:14px;border-bottom:1px solid #F1EFEB}
+.dl{display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap;padding:5px 0;
+  font-size:14px;border-bottom:1px solid #F1EFEB}
+.dl span:first-child{min-width:0}
 .dl:last-child{border-bottom:none}
-.dl span:last-child{font-family:'IBM Plex Mono',monospace;flex:0 0 auto}
+.dl span:last-child{font-family:'IBM Plex Mono',monospace;flex:0 0 auto;margin-left:auto;white-space:nowrap}
 .dl.forte{font-weight:600;border-top:1.5px solid var(--tinta);border-bottom:none;margin-top:4px;padding-top:8px}
 .doc-acerto{background:var(--sup);border:1.5px solid var(--tinta);border-radius:var(--r);
   padding:16px;margin:18px 0;text-align:center}
@@ -621,8 +634,8 @@ function pintar() {
   $('pessoas').innerHTML = MEMBROS.map(m => {
     const s = a.saldo[m];
     return `<div class="pes ${ini(m)}"><div class="nome">${m}</div>
-      <div class="l"><span>pagou</span><span>${BRL(a.desembolso[m])}</span></div>
-      <div class="l"><span>deve</span><span>${BRL(a.cota[m])}</span></div>
+      <div class="l"><span>desembolso</span><span>${BRL(a.desembolso[m])}</span></div>
+      <div class="l"><span>cota</span><span>${BRL(a.cota[m])}</span></div>
       <div class="l s"><span>${s > 0 ? 'a receber' : s < 0 ? 'a transferir' : 'quite'}</span><span>${BRL(s)}</span></div>
     </div>`;
   }).join('');
@@ -675,7 +688,7 @@ function abrirFolha(id) {
   } else {
     $('cab-folha').innerHTML = '';
     $('f-valor').value = ''; $('f-desc').value = '';
-    rasc.pagador = dados.prefs.eu || MEMBROS[0]; rasc.rateio = 'igual'; rasc.icone = '🛒'; rasc.categoria = 'Mercado';
+    rasc.pagador = dados.casa.pagadorPadrao || MEMBROS[0]; rasc.rateio = 'igual'; rasc.icone = '🛒'; rasc.categoria = 'Mercado';
     rasc.data = hojeISO(); $('f-data').value = rasc.data; rasc.comp = competenciaDe(rasc.data, CORTE);
     ['c-desc','c-quando','c-cat','c-rat'].forEach(k => $(k).hidden = false);
     $('salvar').textContent = 'Salvar'; $('remover').hidden = true;
@@ -771,7 +784,7 @@ function resumoTexto(c) {
   t += `\n`;
   MEMBROS.forEach(m => {
     const sd = a.saldo[m];
-    t += `${m} — pagou ${BRL(a.desembolso[m])} · deve ${BRL(a.cota[m])} · ${sd>0?'a receber':sd<0?'a transferir':'quite'} ${BRL(sd)}\n`;
+    t += `${m} — desembolso ${BRL(a.desembolso[m])} · cota ${BRL(a.cota[m])} · ${sd>0?'a receber':sd<0?'a transferir':'quite'} ${BRL(sd)}\n`;
   });
   t += `\n>>> ${ac ? `${ac.de} transfere a ${ac.para} ${BRL(ac.valorCent)}` : 'Nada a acertar'}\n\nLANÇAMENTOS\n`;
   L.forEach(l => t += `${l.icone} ${l.descricao}${l.parcela?' ('+l.parcela+')':''} — ${BRL(l.valorCent)} — ${l.pagador}${l.estimado?' [estimado]':''}\n`);
@@ -794,8 +807,8 @@ function pintarDoc(c) {
   h += `<h3>Apuração</h3><div class="dl"><span>Total do mês · ${L.length} lançamentos</span><span>${BRL(a.total)}</span></div>`;
   MEMBROS.forEach(m => {
     const sd = a.saldo[m];
-    h += `<div class="dl"><span><b>${m}</b> — pagou</span><span>${BRL(a.desembolso[m])}</span></div>
-          <div class="dl"><span>${m} — deve</span><span>${BRL(a.cota[m])}</span></div>
+    h += `<div class="dl"><span><b>${m}</b> — desembolso</span><span>${BRL(a.desembolso[m])}</span></div>
+          <div class="dl"><span>${m} — cota (metade do mês)</span><span>${BRL(a.cota[m])}</span></div>
           <div class="dl forte"><span>${m} — ${sd>0?'a receber':sd<0?'a transferir':'quite'}</span><span>${BRL(sd)}</span></div>`;
   });
 
