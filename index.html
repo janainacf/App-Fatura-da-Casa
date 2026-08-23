@@ -19,6 +19,7 @@
   --aviso:#8A6A1F; --aviso-luz:#FBF2DC; --r:14px;
 }
 *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
+[hidden]{display:none!important}
 html,body{height:100%}
 body{background:var(--fundo);color:var(--tinta);font-family:'Instrument Sans',system-ui,sans-serif;
   font-size:16px;line-height:1.45;-webkit-font-smoothing:antialiased;overscroll-behavior-y:none}
@@ -155,7 +156,7 @@ body.sobrio *{transition:none!important;animation:none!important}
 <body>
 <div class="app">
   <div class="faixa alerta" id="faixa-mem" hidden>
-    <span><b>Sem memória neste visualizador.</b> Publique o app para os lançamentos ficarem salvos.</span>
+    <span><b>Este navegador está bloqueando o armazenamento.</b> Os lançamentos somem ao fechar. Verifique se cookies e dados de site estão liberados para este endereço.</span>
   </div>
   <div class="faixa instalar" id="faixa-inst" hidden>
     <span>Instale na tela inicial para abrir como app.</span><button id="btn-inst">Instalar</button>
