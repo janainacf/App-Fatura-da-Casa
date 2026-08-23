@@ -1,0 +1,664 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#F0EEE9">
+<meta name="description" content="Rateio e fechamento das despesas da casa.">
+<title>Fatura da Casa</title>
+<link rel="manifest" href="./manifest.webmanifest">
+<link rel="icon" href="./favicon.png">
+<link rel="apple-touch-icon" href="./icon-192.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Instrument+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+:root{
+  --fundo:#F0EEE9; --sup:#FFFFFF; --tinta:#232120; --fraca:#6B6560; --regua:#DEDAD3;
+  --p0:#1F4E5F; --p1:#A8622B; --p0-luz:#E3ECEF; --p1-luz:#F5E7DA;
+  --aviso:#8A6A1F; --aviso-luz:#FBF2DC; --r:14px;
+}
+*{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
+html,body{height:100%}
+body{background:var(--fundo);color:var(--tinta);font-family:'Instrument Sans',system-ui,sans-serif;
+  font-size:16px;line-height:1.45;-webkit-font-smoothing:antialiased;overscroll-behavior-y:none}
+.n{font-family:'IBM Plex Mono',ui-monospace,monospace;font-variant-numeric:tabular-nums}
+button{font:inherit;color:inherit;border:none;background:none;cursor:pointer;text-align:left}
+.app{max-width:520px;margin:0 auto;padding:0 16px calc(120px + env(safe-area-inset-bottom))}
+
+.faixa{font-size:12.5px;line-height:1.4;padding:9px 14px;border-radius:0 0 10px 10px;
+  margin:0 -16px 14px;text-align:center;display:flex;gap:10px;align-items:center;justify-content:center}
+.faixa.alerta{background:#3A3532;color:#F0EEE9}
+.faixa.instalar{background:var(--tinta);color:#F7F5F2}
+.faixa button{font-size:12.5px;font-weight:600;text-decoration:underline;flex:0 0 auto}
+
+.topo{display:flex;align-items:baseline;justify-content:space-between;gap:12px;padding:6px 0 16px}
+.topo h1{font-size:19px;font-weight:600;letter-spacing:-.02em}
+.corte{font-size:12.5px;color:var(--fraca);text-align:right;flex:0 0 auto}
+.corte b{display:block;font-family:'IBM Plex Mono',monospace;font-size:15px;color:var(--tinta);font-weight:600}
+
+.heroi{background:var(--sup);border-radius:var(--r);padding:20px 18px 4px;
+  box-shadow:0 1px 2px rgba(35,33,32,.05),0 8px 24px -12px rgba(35,33,32,.14)}
+.totalinha{display:flex;justify-content:space-between;align-items:baseline;gap:10px;
+  padding-bottom:12px;margin-bottom:14px;border-bottom:1px solid var(--regua)}
+.totalinha .rot{font-size:12px;letter-spacing:.09em;text-transform:uppercase;color:var(--fraca);font-weight:600}
+.totalinha .qtd{font-size:12px;color:var(--fraca)}
+.totalinha .tv{font-family:'IBM Plex Mono',monospace;font-size:22px;font-weight:600;letter-spacing:-.03em;flex:0 0 auto}
+.est-nota{font-size:12.5px;color:var(--aviso);margin:-8px 0 14px;line-height:1.35}
+.eyebrow{font-size:11.5px;letter-spacing:.14em;text-transform:uppercase;color:var(--fraca);font-weight:600}
+.frase{font-size:16px;color:var(--tinta);font-weight:500;margin-top:3px}
+.frase b{font-weight:600}
+.valor{font-family:'IBM Plex Mono',monospace;font-size:clamp(34px,10.5vw,46px);font-weight:600;
+  letter-spacing:-.045em;line-height:1.05;margin:3px 0 16px}
+.provisorio{font-size:12.5px;color:var(--aviso);margin:-10px 0 16px;line-height:1.35}
+.pessoas{display:flex;border-top:1px solid var(--regua)}
+.pes{flex:1;min-width:0;padding:14px 0 16px}
+.pes+.pes{border-left:1px solid var(--regua);padding-left:14px}
+.pes .nome{font-size:12px;font-weight:600;letter-spacing:.05em;text-transform:uppercase;margin-bottom:7px}
+.pes.p0 .nome{color:var(--p0)} .pes.p1 .nome{color:var(--p1)}
+.pes .l{display:flex;justify-content:space-between;gap:8px;font-size:13.5px;color:var(--fraca);padding:1.5px 0}
+.pes .l span:last-child{font-family:'IBM Plex Mono',monospace;color:var(--tinta);flex:0 0 auto}
+.pes .l.s{margin-top:5px;padding-top:6px;border-top:1px solid #F1EFEB}
+.pes .l.s span{font-weight:600} .pes .l.s span:first-child{color:var(--tinta)}
+
+h2{font-size:12px;letter-spacing:.1em;text-transform:uppercase;color:var(--fraca);font-weight:600;
+  margin:26px 0 10px;display:flex;justify-content:space-between;align-items:baseline;gap:10px}
+h2 em{font-style:normal;color:var(--aviso);font-weight:600;font-family:'IBM Plex Mono',monospace}
+.lista{background:var(--sup);border-radius:var(--r);overflow:hidden}
+.item{display:flex;align-items:center;gap:12px;padding:12px 14px;border-bottom:1px solid #F1EFEB;width:100%;
+  animation:entra .3s cubic-bezier(.32,.72,.3,1) both}
+.item:last-child{border-bottom:none}
+.item.est{background:var(--aviso-luz)}
+@keyframes entra{from{opacity:0;transform:translateY(-6px)}to{opacity:1;transform:none}}
+.tag{flex:0 0 auto;width:34px;height:34px;border-radius:9px;display:flex;align-items:center;
+  justify-content:center;font-size:17px}
+.tag.p0{background:var(--p0-luz)} .tag.p1{background:var(--p1-luz)}
+.info{flex:1;min-width:0}
+.info .d{font-size:15px;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.info .m{font-size:12.5px;color:var(--fraca);display:flex;gap:6px;align-items:center}
+.dot{width:5px;height:5px;border-radius:99px;flex:0 0 auto}
+.dot.p0{background:var(--p0)} .dot.p1{background:var(--p1)}
+.selo-est{font-size:11px;font-weight:600;color:var(--aviso);letter-spacing:.04em;text-transform:uppercase}
+.vlr{font-family:'IBM Plex Mono',monospace;font-size:15px;font-weight:500;flex:0 0 auto}
+.vlr.est{color:var(--aviso)}
+
+.barra-baixo{position:fixed;left:0;right:0;bottom:0;z-index:20;
+  padding:10px 16px calc(10px + env(safe-area-inset-bottom));
+  background:linear-gradient(to top,var(--fundo) 62%,rgba(240,238,233,0));
+  display:flex;gap:10px;max-width:520px;margin:0 auto}
+.fab{flex:1;background:var(--tinta);color:#F7F5F2;border-radius:13px;padding:15px;font-size:16px;
+  font-weight:600;display:flex;align-items:center;justify-content:center;gap:9px;
+  box-shadow:0 6px 18px -6px rgba(35,33,32,.45);transition:transform .12s}
+.fab:active{transform:scale(.975)}
+.eu{flex:0 0 auto;background:var(--sup);border:1px solid var(--regua);border-radius:13px;
+  padding:0 15px;font-size:13px;font-weight:600;display:flex;align-items:center;gap:7px}
+.eu .b{width:9px;height:9px;border-radius:99px}
+
+.fundo-folha{position:fixed;inset:0;background:rgba(28,26,25,.42);z-index:30;opacity:0;
+  pointer-events:none;transition:opacity .28s}
+.fundo-folha.on{opacity:1;pointer-events:auto}
+.folha{position:fixed;left:0;right:0;bottom:0;z-index:31;background:var(--fundo);
+  border-radius:20px 20px 0 0;max-width:520px;margin:0 auto;height:88vh;display:flex;flex-direction:column;
+  transform:translateY(102%);transition:transform .34s cubic-bezier(.32,.72,.3,1)}
+.folha.on{transform:none}
+.puxador{width:38px;height:4px;background:var(--regua);border-radius:99px;margin:8px auto 4px;flex:0 0 auto}
+.rolagem{flex:1;overflow-y:auto;padding:10px 16px 16px;-webkit-overflow-scrolling:touch}
+.pe-folha{flex:0 0 auto;padding:12px 16px calc(14px + env(safe-area-inset-bottom));
+  border-top:1px solid var(--regua);background:var(--fundo);display:flex;flex-direction:column;gap:9px}
+.campo{margin-bottom:15px}
+.campo label{display:block;font-size:12px;letter-spacing:.07em;text-transform:uppercase;
+  color:var(--fraca);font-weight:600;margin-bottom:7px}
+.moeda{display:flex;align-items:baseline;gap:8px;background:var(--sup);border:1px solid var(--regua);
+  border-radius:12px;padding:12px 14px}
+.moeda span{font-family:'IBM Plex Mono',monospace;font-size:20px;color:var(--fraca)}
+.moeda input{flex:1;min-width:0;width:100%;border:none;outline:none;background:none;
+  font-family:'IBM Plex Mono',monospace;font-size:30px;font-weight:600;letter-spacing:-.03em;color:var(--tinta)}
+.txt{width:100%;background:var(--sup);border:1px solid var(--regua);border-radius:12px;
+  padding:13px 14px;font-size:16px;outline:none;color:var(--tinta);font-family:inherit}
+.txt:focus,.moeda:focus-within{border-color:var(--tinta)}
+.sug{display:flex;gap:7px;overflow-x:auto;padding-top:8px;-webkit-overflow-scrolling:touch}
+.chip{flex:0 0 auto;background:var(--sup);border:1px solid var(--regua);border-radius:99px;
+  padding:7px 13px;font-size:13.5px;white-space:nowrap;transition:all .15s;text-align:center}
+.chip.on{background:var(--tinta);color:#F7F5F2;border-color:var(--tinta)}
+.chip:active{transform:scale(.96)}
+.duplo{display:flex;gap:8px} .duplo .chip{flex:1}
+.chip.p0on{background:var(--p0);border-color:var(--p0)}
+.chip.p1on{background:var(--p1);border-color:var(--p1)}
+.quando{display:flex;gap:8px;align-items:center}
+.quando input[type=date]{flex:0 0 auto;background:var(--sup);border:1px solid var(--regua);border-radius:12px;
+  padding:12px;font-family:'IBM Plex Mono',monospace;font-size:14px;color:var(--tinta);outline:none}
+.derivada{flex:1;min-width:0;font-size:13.5px;color:var(--fraca);line-height:1.3}
+.derivada b{color:var(--tinta);font-weight:600;display:block}
+.nota-comp{font-size:12.5px;color:var(--aviso);margin-top:7px;line-height:1.35}
+.salvar{width:100%;background:var(--tinta);color:#F7F5F2;border-radius:13px;padding:16px;
+  font-size:16.5px;font-weight:600;transition:opacity .2s,transform .12s;text-align:center}
+.salvar:disabled{opacity:.32}
+.salvar:active:not(:disabled){transform:scale(.985)}
+.secundario{width:100%;text-align:center;font-size:14px;color:var(--fraca);padding:6px;font-weight:500}
+.titulo-folha{font-size:16px;font-weight:600;margin-bottom:4px}
+.sub-folha{font-size:13px;color:var(--fraca);margin-bottom:14px}
+
+.rodape{margin-top:26px;padding-top:16px;border-top:1px solid var(--regua);
+  font-size:12.5px;color:var(--fraca);line-height:1.5}
+.rodape b{color:var(--tinta)}
+.linha-r{display:flex;align-items:center;gap:9px;margin-top:14px;font-size:13px}
+.sw{width:40px;height:23px;border-radius:99px;background:var(--regua);position:relative;
+  transition:background .2s;flex:0 0 auto}
+.sw i{position:absolute;top:2.5px;left:2.5px;width:18px;height:18px;border-radius:99px;
+  background:#fff;transition:transform .22s cubic-bezier(.32,.72,.3,1)}
+.sw.on{background:var(--tinta)} .sw.on i{transform:translateX(17px)}
+.perigo{color:#8E2226;font-weight:600;font-size:13px;margin-top:16px;display:block}
+body.sobrio *{transition:none!important;animation:none!important}
+@media (prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
+</style>
+</head>
+<body>
+<div class="app">
+  <div class="faixa alerta" id="faixa-mem" hidden>
+    <span><b>Sem memória neste visualizador.</b> Publique o app para os lançamentos ficarem salvos.</span>
+  </div>
+  <div class="faixa instalar" id="faixa-inst" hidden>
+    <span>Instale na tela inicial para abrir como app.</span><button id="btn-inst">Instalar</button>
+  </div>
+
+  <div class="topo">
+    <h1 id="titulo">Fatura</h1>
+    <div class="corte">fecha em<b id="dias">—</b></div>
+  </div>
+
+  <div class="heroi">
+    <div class="totalinha">
+      <div><div class="rot">Total do mês</div><div class="qtd" id="qtd">—</div></div>
+      <div class="tv n" id="total">—</div>
+    </div>
+    <div class="est-nota" id="est-nota" hidden></div>
+    <div class="eyebrow">Resultado</div>
+    <div class="frase" id="frase">—</div>
+    <div class="valor n" id="valor">—</div>
+    <div class="provisorio" id="provisorio" hidden></div>
+    <div class="pessoas" id="pessoas"></div>
+  </div>
+
+  <div id="setup" hidden>
+    <div class="lista" style="padding:22px 18px">
+      <div style="font-size:17px;font-weight:600;margin-bottom:6px">Primeira abertura</div>
+      <div style="font-size:14px;color:var(--fraca);line-height:1.5;margin-bottom:16px">
+        Cole abaixo os dados de partida que você recebeu. Eles ficam só neste aparelho —
+        nada é enviado para lugar nenhum.
+      </div>
+      <textarea class="txt" id="setup-txt" rows="6" placeholder="Cole aqui" style="font-family:'IBM Plex Mono',monospace;font-size:12px"></textarea>
+      <button class="salvar" id="setup-ok" style="margin-top:12px">Carregar dados</button>
+      <div id="setup-erro" style="color:#8E2226;font-size:13px;margin-top:10px" hidden></div>
+    </div>
+  </div>
+
+  <div id="secoes"></div>
+
+  <div class="rodape">
+    <b>Onde os dados ficam.</b> Só neste aparelho, no navegador. Ainda não há sincronização —
+    o que você lança aqui a outra pessoa não vê no aparelho dela. Esse é o próximo passo.
+    <div class="linha-r"><div class="sw" id="sw"><i></i></div><span>Modo sóbrio — sem animação</span></div>
+    <div style="display:flex;gap:10px;margin-top:16px">
+      <button class="chip" id="exportar" style="flex:1">Copiar meus dados</button>
+      <button class="chip" id="importar" style="flex:1">Colar dados</button>
+    </div>
+    <div id="msg-exp" style="font-size:12.5px;color:var(--p0);margin-top:8px" hidden></div>
+    <div style="font-size:12px;color:var(--fraca);margin-top:8px;line-height:1.45">
+      Copiar gera um texto com tudo o que está aqui. Serve de cópia de segurança e é como
+      levar a configuração para o outro aparelho enquanto não há sincronização.
+    </div>
+    <button class="perigo" id="zerar">Apagar tudo deste aparelho</button>
+  </div>
+</div>
+
+<div class="barra-baixo">
+  <button class="fab" id="abrir">＋ Lançar despesa</button>
+  <button class="eu" id="trocar"><span class="b" id="eu-cor"></span><span id="eu-nome">—</span></button>
+</div>
+
+<div class="fundo-folha" id="fundo"></div>
+<div class="folha" id="folha">
+  <div class="puxador"></div>
+  <div class="rolagem">
+    <div id="cab-folha"></div>
+    <div class="campo">
+      <label>Quanto foi</label>
+      <div class="moeda"><span>R$</span><input id="f-valor" inputmode="decimal" placeholder="0,00" autocomplete="off"></div>
+    </div>
+    <div class="campo" id="c-desc">
+      <label>O que foi</label>
+      <input class="txt" id="f-desc" placeholder="Mercado, gás, farmácia…" autocomplete="off">
+      <div class="sug" id="f-sug"></div>
+    </div>
+    <div class="campo" id="c-pag">
+      <label>Quem pagou</label>
+      <div class="duplo" id="f-pag"></div>
+    </div>
+    <div class="campo" id="c-quando">
+      <label>Quando foi · em qual fatura entra</label>
+      <div class="quando">
+        <input type="date" id="f-data">
+        <div class="derivada"><b id="f-comp">—</b><span id="f-comp-por">—</span></div>
+      </div>
+      <div class="duplo" id="f-comp-chips" style="margin-top:8px"></div>
+      <div class="nota-comp" id="f-nota" hidden></div>
+    </div>
+    <div class="campo" id="c-cat">
+      <label>Categoria</label>
+      <div class="sug" id="f-cat"></div>
+    </div>
+    <div class="campo" id="c-rat">
+      <label>Divisão</label>
+      <div class="duplo" id="f-rat"></div>
+    </div>
+  </div>
+  <div class="pe-folha">
+    <button class="salvar" id="salvar" disabled>Salvar</button>
+    <button class="secundario" id="remover" hidden>Não teve este mês</button>
+  </div>
+</div>
+
+<script>
+/* ══════════════════════════════════════════════════════════════════════════
+   MOTOR — idêntico ao da bancada de aferição. Nada alterado.
+   ══════════════════════════════════════════════════════════════════════════ */
+const cent = reais => Math.round(reais * 100);
+
+function ratear(valorCent, tipoRateio, membros, fila) {
+  const cotas = {}; membros.forEach(m => cotas[m] = 0);
+  if (tipoRateio === 'excluido') return cotas;
+  if (tipoRateio.startsWith('integral:')) { cotas[tipoRateio.slice(9)] = valorCent; return cotas; }
+  const N = membros.length, q = Math.floor(valorCent / N), r = valorCent - q * N;
+  membros.forEach(m => cotas[m] = q);
+  for (let i = 0; i < r; i++) cotas[membros[(fila.ponteiro + i) % N]] += 1;
+  if (r > 0) fila.ponteiro = (fila.ponteiro + r) % N;
+  return cotas;
+}
+
+function competenciaDe(iso, diaCorte) {
+  const [a, m, d] = iso.split('-').map(Number);
+  let ano = a, mes = m;
+  if (d > diaCorte) { mes += 1; if (mes === 13) { mes = 1; ano += 1; } }
+  return `${ano}-${String(mes).padStart(2, '0')}`;
+}
+
+function entraNoCiclo(l, competencia) {
+  return l.escopo === 'fatura' && l.competencia === competencia
+      && l.tipoRateio !== 'excluido' && !l.excluidoEm && l.valorCent !== null;
+}
+
+function apurar(lancamentos, transferencias, membros, competencia) {
+  const fila = { ponteiro: 0 };
+  const desembolso = {}, cota = {}, recebido = {}, enviado = {};
+  membros.forEach(m => { desembolso[m] = cota[m] = recebido[m] = enviado[m] = 0; });
+  let total = 0; const residuos = [];
+  for (const l of lancamentos) {
+    if (!entraNoCiclo(l, competencia)) continue;
+    total += l.valorCent; desembolso[l.pagador] += l.valorCent;
+    const antes = fila.ponteiro;
+    const c = ratear(l.valorCent, l.tipoRateio, membros, fila);
+    membros.forEach(m => cota[m] += c[m]);
+    if (l.tipoRateio === 'igual' && Math.abs(l.valorCent % membros.length) !== 0)
+      residuos.push({ descricao: l.descricao, para: membros[antes % membros.length] });
+  }
+  for (const t of (transferencias || [])) {
+    if (t.competencia !== competencia || t.finalidade !== 'adiantamento' || t.considerar === false) continue;
+    recebido[t.para] += t.valorCent; enviado[t.de] += t.valorCent;
+  }
+  const saldo = {};
+  membros.forEach(m => saldo[m] = desembolso[m] - cota[m] + enviado[m] - recebido[m]);
+  const soma = o => membros.reduce((a, m) => a + o[m], 0);
+  const invariantes = { cotasSomamTotal: soma(cota) === total,
+    desembolsosSomamTotal: soma(desembolso) === total, saldosSomamZero: soma(saldo) === 0 };
+  invariantes.ok = Object.values(invariantes).every(Boolean);
+  const pendencias = lancamentos.filter(l => l.escopo === 'fatura' && l.competencia === competencia
+    && l.valorCent === null && !l.excluidoEm).length;
+  return { total, desembolso, cota, recebido, enviado, saldo, invariantes, pendencias, residuos,
+           podeFechar: invariantes.ok && pendencias === 0 };
+}
+
+function gerarAcerto(saldo, membros) {
+  const cred = membros.filter(m => saldo[m] > 0).map(m => ({ m, v: saldo[m] })).sort((a, b) => b.v - a.v);
+  const dev = membros.filter(m => saldo[m] < 0).map(m => ({ m, v: -saldo[m] })).sort((a, b) => b.v - a.v);
+  const out = []; let i = 0, j = 0;
+  while (i < dev.length && j < cred.length) {
+    const v = Math.min(dev[i].v, cred[j].v);
+    if (v > 0) out.push({ de: dev[i].m, para: cred[j].m, valorCent: v });
+    dev[i].v -= v; cred[j].v -= v;
+    if (dev[i].v === 0) i++; if (cred[j].v === 0) j++;
+  }
+  return out;
+}
+/* ═══════════════════════════════════ MOTOR — fim ═══════════════════════════════════ */
+
+
+/* ── Armazenamento. Tolerante: se o navegador não deixar gravar, roda em memória. ── */
+const armazem = (() => {
+  let ok = false;
+  try { const k = '__t__'; localStorage.setItem(k, '1'); localStorage.removeItem(k); ok = true; }
+  catch (e) { ok = false; }
+  const mem = {};
+  return {
+    persiste: ok,
+    ler(k) { try { return ok ? localStorage.getItem(k) : (k in mem ? mem[k] : null); } catch (e) { return mem[k] ?? null; } },
+    gravar(k, v) { try { if (ok) localStorage.setItem(k, v); else mem[k] = v; } catch (e) { mem[k] = v; } },
+    limpar(k) { try { if (ok) localStorage.removeItem(k); else delete mem[k]; } catch (e) { delete mem[k]; } }
+  };
+})();
+
+const CHAVE = 'fatura-da-casa/v1', ESQUEMA = 1;
+const CORTE_PADRAO = 20;
+const MES = ['janeiro','fevereiro','março','abril','maio','junho','julho','agosto','setembro','outubro','novembro','dezembro'];
+const nomeComp = c => { const [a, m] = c.split('-').map(Number); return `fatura de ${MES[m-1]}`; };
+const tituloComp = c => { const [a, m] = c.split('-').map(Number); return `Fatura de ${MES[m-1]}`; };
+const hojeISO = () => new Date().toISOString().slice(0, 10);
+const agora = () => new Date().toISOString();
+const novoId = () => (crypto.randomUUID ? crypto.randomUUID()
+  : 'id-' + Date.now().toString(36) + '-' + Math.random().toString(36).slice(2, 9));
+const mesesEntre = (a, b) => {
+  const [aa, am] = a.split('-').map(Number), [ba, bm] = b.split('-').map(Number);
+  return (ba - aa) * 12 + (bm - am);
+};
+
+/* Categorias padrão. As da casa vêm nos dados de partida e substituem estas. */
+const CATEGORIAS_PADRAO = [['🛒','Mercado'],['💡','Contas'],['🏠','Moradia'],['🛋','Casa'],
+  ['📺','Assinaturas'],['🎁','Presentes'],['✈','Viagem'],['🐾','Pets'],['📌','Outros']];
+
+/* ── Estado persistido. O formato já é o que a sincronização vai exigir:
+      id próprio, marca de tempo e exclusão lógica em cada lançamento. ── */
+function vazio() {
+  return { esquema: ESQUEMA,
+           casa: { id: novoId(), nome: 'Casa', diaCorte: CORTE_PADRAO, membros: [] },
+           recorrencias: [], parcelamentos: [], parcelaBase: null, categorias: [],
+           lancamentos: [], transferencias: [], ciclosSemeados: [],
+           prefs: { eu: null, sobrio: false } };
+}
+
+let dados = (() => {
+  try {
+    const bruto = armazem.ler(CHAVE);
+    if (!bruto) return vazio();
+    const d = JSON.parse(bruto);
+    if (d.esquema !== ESQUEMA) return vazio();
+    return d;
+  } catch (e) { return vazio(); }
+})();
+
+const salvar = () => armazem.gravar(CHAVE, JSON.stringify(dados));
+const competenciaAtual = () => competenciaDe(hojeISO(), dados.casa.diaCorte || CORTE_PADRAO);
+
+function semear(comp) {
+  if (dados.ciclosSemeados.includes(comp)) return;
+  if (!dados.casa.membros.length) return;
+  (dados.recorrencias || []).forEach(r => dados.lancamentos.push({
+    id: novoId(), descricao: r.descricao, valorCent: r.valorCent, pagador: r.pagador,
+    icone: r.icone, natureza: 'Fixa', estimado: true, base: r.base, recorrenciaId: r.id,
+    dataDespesa: null, competencia: comp, escopo: 'fatura', tipoRateio: 'igual',
+    criadoPor: 'sistema', criadoEm: agora(), atualizadoEm: agora(), excluidoEm: null
+  }));
+  const off = dados.parcelaBase ? mesesEntre(dados.parcelaBase, comp) : 0;
+  (dados.parcelamentos || []).forEach(p => {
+    const num = p.ini + off;
+    if (num < 1 || num > p.total) return;
+    dados.lancamentos.push({
+      id: novoId(), descricao: p.descricao, valorCent: p.valorCent, pagador: p.pagador,
+      icone: p.icone, natureza: 'Parcelada', parcela: `${num}/${p.total}`, parcelaGrupoId: p.id,
+      dataDespesa: null, competencia: comp, escopo: 'fatura', tipoRateio: 'igual',
+      criadoPor: 'sistema', criadoEm: agora(), atualizadoEm: agora(), excluidoEm: null
+    });
+  });
+  dados.ciclosSemeados.push(comp);
+  salvar();
+}
+
+const MEMBROS = dados.casa.membros;
+const CATEGORIAS = (dados.categorias && dados.categorias.length) ? dados.categorias : CATEGORIAS_PADRAO;
+const CORTE = dados.casa.diaCorte || CORTE_PADRAO;
+const COMP = competenciaAtual();
+if (MEMBROS.length && !dados.prefs.eu) { dados.prefs.eu = MEMBROS[0]; salvar(); }
+semear(COMP);
+
+const BRL = c => 'R$ ' + Math.abs(c / 100).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+const $ = id => document.getElementById(id);
+const outro = m => MEMBROS[(MEMBROS.indexOf(m) + 1) % MEMBROS.length] || m;
+const ini = m => 'p' + Math.max(0, MEMBROS.indexOf(m));
+const doCiclo = () => dados.lancamentos.filter(l => l.competencia === COMP && !l.excluidoEm);
+
+const rasc = { pagador: null, icone: '🛒', categoria: 'Mercado', rateio: 'igual', data: hojeISO(), comp: COMP };
+let editando = null;
+
+function diasAteCorte() {
+  const h = new Date();
+  let alvo = new Date(h.getFullYear(), h.getMonth(), CORTE);
+  if (h.getDate() > CORTE) alvo = new Date(h.getFullYear(), h.getMonth() + 1, CORTE);
+  return Math.max(0, Math.ceil((alvo - h) / 86400000));
+}
+
+function pintar() {
+  const L = doCiclo();
+  const a = apurar(L, dados.transferencias, MEMBROS, COMP);
+  const ac = gerarAcerto(a.saldo, MEMBROS)[0];
+  const est = L.filter(l => l.estimado), conf = L.filter(l => !l.estimado);
+  const sE = est.reduce((s, l) => s + l.valorCent, 0), sC = conf.reduce((s, l) => s + l.valorCent, 0);
+
+  $('total').textContent = BRL(a.total);
+  $('qtd').textContent = `${L.length} lançamento${L.length === 1 ? '' : 's'}`;
+  $('est-nota').hidden = sE === 0;
+  if (sE) $('est-nota').textContent = `${BRL(sE)} ainda são estimativa — o valor real pode subir ou descer.`;
+
+  if (!ac) {
+    $('frase').textContent = a.total === 0 ? 'Nada lançado ainda neste ciclo.' : 'Ninguém transfere nada — vocês estão quites.';
+    $('valor').textContent = a.total === 0 ? '—' : 'R$ 0,00';
+  } else {
+    $('frase').innerHTML = `<b>${ac.de}</b> transfere a <b>${ac.para}</b>`;
+    $('valor').textContent = BRL(ac.valorCent);
+  }
+  $('provisorio').hidden = est.length === 0;
+  if (est.length) $('provisorio').textContent =
+    `Provisório — ${est.length} estimativa${est.length === 1 ? '' : 's'} ainda por confirmar.`;
+
+  $('pessoas').innerHTML = MEMBROS.map(m => {
+    const s = a.saldo[m];
+    return `<div class="pes ${ini(m)}"><div class="nome">${m}</div>
+      <div class="l"><span>pagou</span><span>${BRL(a.desembolso[m])}</span></div>
+      <div class="l"><span>deve</span><span>${BRL(a.cota[m])}</span></div>
+      <div class="l s"><span>${s > 0 ? 'a receber' : s < 0 ? 'a transferir' : 'quite'}</span><span>${BRL(s)}</span></div>
+    </div>`;
+  }).join('');
+
+  let html = '';
+  if (est.length) html += `<h2><span>A confirmar · ${est.length}</span><em>${BRL(sE)}</em></h2>
+    <div class="lista">${est.map(l => linha(l, true)).join('')}</div>`;
+  html += `<h2><span>Confirmados · ${conf.length}</span><em style="color:var(--fraca)">${BRL(sC)}</em></h2>
+    <div class="lista">${conf.length ? [...conf].reverse().map(l => linha(l, false)).join('')
+      : '<div style="padding:22px;text-align:center;color:var(--fraca);font-size:14.5px">Nada confirmado ainda.</div>'}</div>`;
+  $('secoes').innerHTML = html;
+  $('secoes').querySelectorAll('[data-id]').forEach(b => b.onclick = () => abrirFolha(b.dataset.id));
+}
+
+function linha(l, estimado) {
+  const meta = estimado ? `<span class="selo-est">estimado</span> · ${l.base}`
+    : `${l.pagador}${l.parcela ? ' · ' + l.parcela : ''}${l.tipoRateio !== 'igual' ? ' · só de um' : ''}`;
+  return `<button class="item${estimado ? ' est' : ''}" data-id="${l.id}">
+    <div class="tag ${ini(l.pagador)}">${l.icone}</div>
+    <div class="info"><div class="d">${l.descricao}</div>
+      <div class="m">${estimado ? '' : `<span class="dot ${ini(l.pagador)}"></span>`}${meta}</div></div>
+    <div class="vlr${estimado ? ' est' : ''}">${BRL(l.valorCent)}</div></button>`;
+}
+
+function pintarEu() {
+  $('eu-nome').textContent = dados.prefs.eu;
+  $('eu-cor').style.background = MEMBROS.indexOf(dados.prefs.eu) === 1 ? 'var(--p1)' : 'var(--p0)';
+}
+
+/* ── folha ── */
+function abrirFolha(id) {
+  editando = id ? dados.lancamentos.find(l => l.id === id) : null;
+  if (editando) {
+    $('cab-folha').innerHTML = `<div class="titulo-folha">${editando.estimado ? 'Confirmar' : 'Editar'} ${editando.descricao}</div>
+      <div class="sub-folha">${editando.estimado ? `Estimado em ${BRL(editando.valorCent)} — ${editando.base}. Ajuste para o valor real.`
+        : 'Corrija o valor ou remova o lançamento.'}</div>`;
+    $('f-valor').value = (editando.valorCent / 100).toFixed(2).replace('.', ',');
+    $('f-desc').value = editando.descricao;
+    rasc.pagador = editando.pagador; rasc.icone = editando.icone; rasc.rateio = editando.tipoRateio;
+    ['c-desc','c-quando','c-cat','c-rat'].forEach(k => $(k).hidden = true);
+    $('salvar').textContent = editando.estimado ? 'Confirmar valor' : 'Salvar alteração';
+    $('remover').hidden = false;
+    $('remover').textContent = editando.estimado ? 'Não teve este mês' : 'Remover lançamento';
+  } else {
+    $('cab-folha').innerHTML = '';
+    $('f-valor').value = ''; $('f-desc').value = '';
+    rasc.pagador = dados.prefs.eu || MEMBROS[0]; rasc.rateio = 'igual'; rasc.icone = '🛒'; rasc.categoria = 'Mercado';
+    rasc.data = hojeISO(); $('f-data').value = rasc.data; rasc.comp = competenciaDe(rasc.data, CORTE);
+    ['c-desc','c-quando','c-cat','c-rat'].forEach(k => $(k).hidden = false);
+    $('salvar').textContent = 'Salvar'; $('remover').hidden = true;
+  }
+  montarChips(); atualizarQuando();
+  $('fundo').classList.add('on'); $('folha').classList.add('on');
+  setTimeout(() => $('f-valor').focus(), 320);
+  validar();
+}
+const fecharFolha = () => { $('fundo').classList.remove('on'); $('folha').classList.remove('on'); };
+
+function atualizarQuando() {
+  if (editando) return;
+  const derivada = competenciaDe(rasc.data, CORTE);
+  const fechada = derivada < COMP;
+  if (fechada) rasc.comp = COMP;
+  const seg = (() => { const [a, m] = COMP.split('-').map(Number);
+    return m === 12 ? `${a+1}-01` : `${a}-${String(m+1).padStart(2,'0')}`; })();
+  $('f-comp').textContent = nomeComp(rasc.comp);
+  $('f-comp-por').textContent = fechada ? 'a fatura dessa data já fechou'
+    : rasc.comp === derivada ? 'pela data, com corte no dia 20' : 'escolhido por você';
+  $('f-comp-chips').innerHTML = [[COMP, nomeComp(COMP)], [seg, nomeComp(seg)]]
+    .map(([v, t]) => `<button class="chip${rasc.comp === v ? ' on' : ''}" data-comp="${v}">${t}</button>`).join('');
+  $('f-comp-chips').querySelectorAll('[data-comp]').forEach(b => b.onclick = () => { rasc.comp = b.dataset.comp; atualizarQuando(); });
+  $('f-nota').hidden = !fechada;
+  if (fechada) $('f-nota').textContent =
+    'Essa data cai num ciclo já encerrado. O lançamento vai para a fatura aberta — corrigir mês fechado é por ajuste.';
+}
+
+function montarChips() {
+  $('f-pag').innerHTML = MEMBROS.map((m, i) =>
+    `<button class="chip${rasc.pagador === m ? (i === 1 ? ' p1on' : ' p0on') : ''}" data-pag="${m}">${m}</button>`).join('');
+  $('f-pag').querySelectorAll('[data-pag]').forEach(b => b.onclick = () => {
+    rasc.pagador = b.dataset.pag;
+    if (rasc.rateio.startsWith('integral:')) rasc.rateio = 'integral:' + rasc.pagador;
+    montarChips();
+  });
+  $('f-cat').innerHTML = CATEGORIAS.map(([ic, nome]) =>
+    `<button class="chip${rasc.categoria === nome ? ' on' : ''}" data-cat="${nome}" data-ic="${ic}">${ic} ${nome}</button>`).join('');
+  $('f-cat').querySelectorAll('[data-cat]').forEach(b => b.onclick = () => {
+    rasc.categoria = b.dataset.cat; rasc.icone = b.dataset.ic; montarChips(); });
+  $('f-rat').innerHTML = [['igual','Dos dois'],['integral:' + rasc.pagador,'Só de ' + rasc.pagador.split(' ')[0]]]
+    .map(([v, t]) => `<button class="chip${rasc.rateio === v ? ' on' : ''}" data-rat="${v}">${t}</button>`).join('');
+  $('f-rat').querySelectorAll('[data-rat]').forEach(b => b.onclick = () => { rasc.rateio = b.dataset.rat; montarChips(); });
+  const usados = [...new Set(dados.lancamentos.map(l => l.descricao))].slice(0, 8);
+  $('f-sug').innerHTML = usados.map(d => `<button class="chip" data-desc="${d}">${d}</button>`).join('');
+  $('f-sug').querySelectorAll('[data-desc]').forEach(b => b.onclick = () => { $('f-desc').value = b.dataset.desc; validar(); });
+}
+
+const lerValor = () => {
+  const v = parseFloat($('f-valor').value.replace(/\./g, '').replace(',', '.').trim());
+  return isNaN(v) || v <= 0 ? null : cent(v);
+};
+const validar = () => { $('salvar').disabled = !(lerValor() && $('f-desc').value.trim()); };
+
+function gravar() {
+  const v = lerValor(); if (!v) return;
+  if (editando) {
+    editando.valorCent = v; editando.pagador = rasc.pagador; editando.tipoRateio = rasc.rateio;
+    delete editando.estimado; delete editando.base;
+    editando.atualizadoEm = agora();
+  } else {
+    dados.lancamentos.push({
+      id: novoId(), descricao: $('f-desc').value.trim(), valorCent: v, pagador: rasc.pagador,
+      icone: rasc.icone, categoria: rasc.categoria, natureza: 'Variável', dataDespesa: rasc.data,
+      competencia: rasc.comp, escopo: 'fatura', tipoRateio: rasc.rateio,
+      criadoPor: dados.prefs.eu, criadoEm: agora(), atualizadoEm: agora(), excluidoEm: null
+    });
+  }
+  salvar(); fecharFolha(); pintar();
+  if (!dados.prefs.sobrio && navigator.vibrate) navigator.vibrate(12);
+}
+
+function remover() {
+  if (!editando) return;
+  editando.excluidoEm = agora(); editando.atualizadoEm = agora();
+  salvar(); fecharFolha(); pintar();
+}
+
+$('abrir').onclick = () => abrirFolha();
+$('fundo').onclick = fecharFolha;
+$('salvar').onclick = gravar;
+$('remover').onclick = remover;
+$('f-valor').oninput = validar;
+$('f-desc').oninput = validar;
+$('f-data').onchange = () => { rasc.data = $('f-data').value || hojeISO(); rasc.comp = competenciaDe(rasc.data, CORTE); atualizarQuando(); };
+$('trocar').onclick = () => { dados.prefs.eu = outro(dados.prefs.eu); salvar(); pintarEu(); };
+$('sw').onclick = () => {
+  dados.prefs.sobrio = !dados.prefs.sobrio; salvar();
+  $('sw').classList.toggle('on', dados.prefs.sobrio);
+  document.body.classList.toggle('sobrio', dados.prefs.sobrio);
+};
+$('zerar').onclick = () => {
+  if (!confirm('Apaga todos os lançamentos deste aparelho. Não dá para desfazer. Continuar?')) return;
+  armazem.limpar(CHAVE); location.reload();
+};
+
+/* instalação na tela inicial */
+let promptInst = null;
+addEventListener('beforeinstallprompt', e => { e.preventDefault(); promptInst = e; $('faixa-inst').hidden = false; });
+$('btn-inst').onclick = async () => { if (!promptInst) return; promptInst.prompt(); await promptInst.userChoice; promptInst = null; $('faixa-inst').hidden = true; };
+
+if ('serviceWorker' in navigator && location.protocol.startsWith('http'))
+  addEventListener('load', () => navigator.serviceWorker.register('./sw.js').catch(() => {}));
+
+/* primeira abertura: sem membros cadastrados, só a tela de carga */
+const configurado = () => MEMBROS.length > 0;
+
+function aplicarImportado(txt) {
+  const d = JSON.parse(txt);
+  if (!d || typeof d !== 'object' || !d.casa || !Array.isArray(d.casa.membros) || !d.casa.membros.length)
+    throw new Error('formato');
+  d.esquema = ESQUEMA;
+  d.lancamentos = d.lancamentos || []; d.transferencias = d.transferencias || [];
+  d.ciclosSemeados = d.ciclosSemeados || []; d.prefs = d.prefs || { eu: d.casa.membros[0], sobrio: false };
+  armazem.gravar(CHAVE, JSON.stringify(d));
+}
+
+$('setup-ok').onclick = () => {
+  try { aplicarImportado($('setup-txt').value.trim()); location.reload(); }
+  catch (e) { $('setup-erro').hidden = false; $('setup-erro').textContent =
+    'Não consegui ler esse texto. Confira se copiou o bloco inteiro.'; }
+};
+$('exportar').onclick = async () => {
+  const txt = JSON.stringify(dados);
+  try { await navigator.clipboard.writeText(txt); mostrar('Copiado. Cole num lugar seguro.'); }
+  catch (e) { prompt('Copie o texto abaixo:', txt); }
+};
+$('importar').onclick = () => {
+  const txt = prompt('Cole aqui os dados. Isto substitui tudo que está neste aparelho.');
+  if (!txt) return;
+  try { aplicarImportado(txt.trim()); location.reload(); }
+  catch (e) { alert('Não consegui ler esse texto.'); }
+};
+function mostrar(t) { $('msg-exp').hidden = false; $('msg-exp').textContent = t;
+  setTimeout(() => { $('msg-exp').hidden = true; }, 3000); }
+
+if (!configurado()) {
+  $('setup').hidden = false;
+  document.querySelector('.heroi').hidden = true;
+  document.querySelector('.barra-baixo').hidden = true;
+  $('titulo').textContent = 'Fatura da Casa';
+  $('dias').parentElement.hidden = true;
+}
+
+$('faixa-mem').hidden = armazem.persiste;
+if (configurado()) $('titulo').textContent = tituloComp(COMP);
+$('dias').textContent = diasAteCorte() + (diasAteCorte() === 1 ? ' dia' : ' dias');
+if (dados.prefs.sobrio) { $('sw').classList.add('on'); document.body.classList.add('sobrio'); }
+if (configurado()) { pintarEu(); pintar(); }
+</script>
+</body>
+</html>
