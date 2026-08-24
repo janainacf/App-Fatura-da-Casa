@@ -632,10 +632,11 @@ function pintar() {
     `Provisório — ${est.length} estimativa${est.length === 1 ? '' : 's'} ainda por confirmar.`;
 
   $('pessoas').innerHTML = MEMBROS.map(m => {
-    const s = a.saldo[m];
+    const s = a.saldo[m], aj = a.enviado[m] - a.recebido[m];
     return `<div class="pes ${ini(m)}"><div class="nome">${m}</div>
       <div class="l"><span>desembolso</span><span>${BRL(a.desembolso[m])}</span></div>
       <div class="l"><span>cota</span><span>${BRL(a.cota[m])}</span></div>
+      ${aj !== 0 ? `<div class="l"><span>${aj > 0 ? 'crédito a favor' : 'crédito concedido'}</span><span>${aj < 0 ? '−' : ''}${BRL(aj)}</span></div>` : ''}
       <div class="l s"><span>${s > 0 ? 'a receber' : s < 0 ? 'a transferir' : 'quite'}</span><span>${BRL(s)}</span></div>
     </div>`;
   }).join('');
@@ -786,6 +787,8 @@ function resumoTexto(c) {
     const sd = a.saldo[m];
     t += `${m} — desembolso ${BRL(a.desembolso[m])} · cota ${BRL(a.cota[m])} · ${sd>0?'a receber':sd<0?'a transferir':'quite'} ${BRL(sd)}\n`;
   });
+  const tr = (dados.transferencias||[]).filter(x => x.competencia === c && x.finalidade === 'adiantamento' && x.considerar !== false);
+  if (tr.length) { t += `\nCRÉDITOS\n`; tr.forEach(x => t += `${x.de} → ${x.para}: ${BRL(x.valorCent)}${x.obs ? ' — ' + x.obs : ''}\n`); }
   t += `\n>>> ${ac ? `${ac.de} transfere a ${ac.para} ${BRL(ac.valorCent)}` : 'Nada a acertar'}\n\nLANÇAMENTOS\n`;
   L.forEach(l => t += `${l.icone} ${l.descricao}${l.parcela?' ('+l.parcela+')':''} — ${BRL(l.valorCent)} — ${l.pagador}${l.estimado?' [estimado]':''}\n`);
   return t;
@@ -811,6 +814,14 @@ function pintarDoc(c) {
           <div class="dl"><span>${m} — cota (metade do mês)</span><span>${BRL(a.cota[m])}</span></div>
           <div class="dl forte"><span>${m} — ${sd>0?'a receber':sd<0?'a transferir':'quite'}</span><span>${BRL(sd)}</span></div>`;
   });
+
+  const trs = (dados.transferencias||[]).filter(t => t.competencia === c && t.finalidade === 'adiantamento' && t.considerar !== false);
+  if (trs.length) {
+    h += `<h3>Créditos e adiantamentos</h3>`;
+    trs.forEach(t => h += `<div class="dl"><span>${t.de} → ${t.para}${t.obs ? ' · ' + t.obs : ''}</span><span>${BRL(t.valorCent)}</span></div>`);
+    h += `<div style="font-size:12.5px;color:var(--fraca);margin-top:6px;line-height:1.4">
+      Não são despesas do mês. Entram só no acerto, abatendo do que ${trs[0].de} tem a transferir.</div>`;
+  }
 
   h += `<div class="doc-acerto"><div class="f">${ac ? `${ac.de} transfere a ${ac.para}` : 'Nada a acertar'}</div>
     <div class="v">${BRL(ac ? ac.valorCent : 0)}</div></div>`;
