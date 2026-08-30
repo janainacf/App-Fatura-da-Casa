@@ -142,6 +142,8 @@ h2 em{font-style:normal;color:var(--aviso);font-weight:600;font-family:'IBM Plex
 .derivada{flex:1;min-width:0;font-size:13.5px;color:var(--fraca);line-height:1.3}
 .derivada b{color:var(--tinta);font-weight:600;display:block}
 .nota-comp{font-size:12.5px;color:var(--aviso);margin-top:7px;line-height:1.35}
+.nota-parc{font-size:12.5px;color:var(--p0);margin-top:8px;line-height:1.4;
+  background:var(--p0-luz);border-radius:9px;padding:9px 11px}
 .salvar{width:100%;background:var(--tinta);color:#F7F5F2;border-radius:13px;padding:16px;
   font-size:16.5px;font-weight:600;transition:opacity .2s,transform .12s;text-align:center}
 .salvar:disabled{opacity:.32}
@@ -282,7 +284,9 @@ body.sobrio *{transition:none!important;animation:none!important}
   <div id="vazio-ciclo"></div>
 
   <div class="rodape">
-    <b>Onde os dados ficam.</b> Só neste aparelho, no navegador. Ainda não há sincronização —
+    <b>Compras parceladas.</b> Ao lançar, escolha em quantas vezes. Todas as parcelas são criadas de uma
+    vez, uma em cada mês, com o número certo — e somem sozinhas quando a última vence.
+    <br><br><b>Onde os dados ficam.</b> Só neste aparelho, no navegador. Ainda não há sincronização —
     o que você lança aqui a outra pessoa não vê no aparelho dela. Esse é o próximo passo.
     <div class="linha-r"><div class="sw" id="sw"><i></i></div><span>Modo sóbrio — sem animação</span></div>
     <div style="display:flex;gap:10px;margin-top:16px">
@@ -343,6 +347,12 @@ body.sobrio *{transition:none!important;animation:none!important}
       </div>
       <div class="duplo" id="f-comp-chips" style="margin-top:8px"></div>
       <div class="nota-comp" id="f-nota" hidden></div>
+    </div>
+    <div class="campo" id="c-parc">
+      <label>Parcelas</label>
+      <div class="sug" id="f-parc"></div>
+      <div class="duplo" id="f-parc-modo" style="margin-top:8px" hidden></div>
+      <div class="nota-parc" id="f-parc-nota" hidden></div>
     </div>
     <div class="campo" id="c-cat">
       <label>Categoria</label>
@@ -429,6 +439,12 @@ function gerarAcerto(saldo, membros) {
     if (dev[i].v === 0) i++; if (cred[j].v === 0) j++;
   }
   return out;
+}
+/** RN-18 — parcelas sem dízima. O resto vai nas primeiras, convenção dos emissores. */
+function gerarParcelas(totalCent, k) {
+  const q = Math.floor(totalCent / k);
+  const r = totalCent - q * k;
+  return Array.from({ length: k }, (_, i) => q + (i < r ? 1 : 0));
 }
 /* ═══════════════════════════════════ MOTOR — fim ═══════════════════════════════════ */
 
@@ -565,7 +581,7 @@ const outro = m => MEMBROS[(MEMBROS.indexOf(m) + 1) % MEMBROS.length] || m;
 const ini = m => 'p' + Math.max(0, MEMBROS.indexOf(m));
 const doCiclo = (c) => dados.lancamentos.filter(l => l.competencia === (c || COMP) && !l.excluidoEm);
 
-const rasc = { pagador: null, icone: '🛒', categoria: 'Mercado', rateio: 'igual', data: hojeISO(), comp: COMP };
+const rasc = { pagador: null, icone: '🛒', categoria: 'Mercado', rateio: 'igual', data: hojeISO(), comp: COMP, parcelas: 1, parcModo: 'total' };
 let editando = null;
 
 function diasAteCorte() {
@@ -682,7 +698,7 @@ function abrirFolha(id) {
     $('f-valor').value = (editando.valorCent / 100).toFixed(2).replace('.', ',');
     $('f-desc').value = editando.descricao;
     rasc.pagador = editando.pagador; rasc.icone = editando.icone; rasc.rateio = editando.tipoRateio;
-    ['c-desc','c-quando','c-cat','c-rat'].forEach(k => $(k).hidden = true);
+    ['c-desc','c-quando','c-parc','c-cat','c-rat'].forEach(k => $(k).hidden = true);
     $('salvar').textContent = editando.estimado ? 'Confirmar valor' : 'Salvar alteração';
     $('remover').hidden = false;
     $('remover').textContent = editando.estimado ? 'Não teve este mês' : 'Remover lançamento';
@@ -691,7 +707,8 @@ function abrirFolha(id) {
     $('f-valor').value = ''; $('f-desc').value = '';
     rasc.pagador = dados.casa.pagadorPadrao || MEMBROS[0]; rasc.rateio = 'igual'; rasc.icone = '🛒'; rasc.categoria = 'Mercado';
     rasc.data = hojeISO(); $('f-data').value = rasc.data; rasc.comp = competenciaDe(rasc.data, CORTE);
-    ['c-desc','c-quando','c-cat','c-rat'].forEach(k => $(k).hidden = false);
+    rasc.parcelas = 1; rasc.parcModo = 'total';
+    ['c-desc','c-quando','c-parc','c-cat','c-rat'].forEach(k => $(k).hidden = false);
     $('salvar').textContent = 'Salvar'; $('remover').hidden = true;
   }
   montarChips(); atualizarQuando();
@@ -734,16 +751,55 @@ function montarChips() {
   $('f-rat').innerHTML = [['igual','Dos dois'],['integral:' + rasc.pagador,'Só de ' + rasc.pagador.split(' ')[0]]]
     .map(([v, t]) => `<button class="chip${rasc.rateio === v ? ' on' : ''}" data-rat="${v}">${t}</button>`).join('');
   $('f-rat').querySelectorAll('[data-rat]').forEach(b => b.onclick = () => { rasc.rateio = b.dataset.rat; montarChips(); });
+  const OPC = [1,2,3,4,5,6,8,10,12];
+  $('f-parc').innerHTML = OPC.map(k =>
+    `<button class="chip${rasc.parcelas === k ? ' on' : ''}" data-k="${k}">${k === 1 ? 'à vista' : k + '×'}</button>`).join('')
+    + `<button class="chip${OPC.includes(rasc.parcelas) ? '' : ' on'}" data-k="outro">outro…</button>`;
+  $('f-parc').querySelectorAll('[data-k]').forEach(b => b.onclick = () => {
+    if (b.dataset.k === 'outro') {
+      const n = parseInt(prompt('Em quantas parcelas?', rasc.parcelas > 1 ? rasc.parcelas : 3), 10);
+      if (!n || n < 1 || n > 60) return;
+      rasc.parcelas = n;
+    } else rasc.parcelas = +b.dataset.k;
+    montarChips(); notaParcela();
+  });
+  $('f-parc-modo').hidden = rasc.parcelas < 2;
+  $('f-parc-modo').innerHTML = rasc.parcelas < 2 ? '' :
+    [['total','o valor é o TOTAL'],['parcela','o valor é de CADA parcela']]
+      .map(([v,t]) => `<button class="chip${rasc.parcModo === v ? ' on' : ''}" data-pm="${v}">${t}</button>`).join('');
+  $('f-parc-modo').querySelectorAll('[data-pm]').forEach(b => b.onclick = () => {
+    rasc.parcModo = b.dataset.pm; montarChips(); notaParcela();
+  });
+
   const usados = [...new Set(dados.lancamentos.map(l => l.descricao))].slice(0, 8);
   $('f-sug').innerHTML = usados.map(d => `<button class="chip" data-desc="${d}">${d}</button>`).join('');
   $('f-sug').querySelectorAll('[data-desc]').forEach(b => b.onclick = () => { $('f-desc').value = b.dataset.desc; validar(); });
+}
+
+function totalDaCompra() {
+  const v = lerValor(); if (!v) return null;
+  return rasc.parcModo === 'total' ? v : v * rasc.parcelas;
+}
+function notaParcela() {
+  const n = $('f-parc-nota');
+  if (rasc.parcelas < 2 || editando) { n.hidden = true; return; }
+  const tot = totalDaCompra();
+  if (!tot) { n.hidden = true; return; }
+  const ps = gerarParcelas(tot, rasc.parcelas);
+  const iguais = ps[0] === ps[ps.length - 1];
+  const ult = desloca(rasc.comp, rasc.parcelas - 1);
+  n.hidden = false;
+  n.innerHTML = `<b>${rasc.parcelas} parcelas</b> de ${BRL(ps[ps.length-1])}`
+    + (iguais ? '' : `, a primeira de ${BRL(ps[0])}`)
+    + ` · total ${BRL(tot)}<br>De ${nomeComp(rasc.comp)} até ${nomeComp(ult)} de ${ult.split('-')[0]}.`
+    + ` Todas serão criadas agora, uma em cada mês.`;
 }
 
 const lerValor = () => {
   const v = parseFloat($('f-valor').value.replace(/\./g, '').replace(',', '.').trim());
   return isNaN(v) || v <= 0 ? null : cent(v);
 };
-const validar = () => { $('salvar').disabled = !(lerValor() && $('f-desc').value.trim()); };
+const validar = () => { $('salvar').disabled = !(lerValor() && $('f-desc').value.trim()); notaParcela(); };
 
 function gravar() {
   const v = lerValor(); if (!v) return;
@@ -751,6 +807,17 @@ function gravar() {
     editando.valorCent = v; editando.pagador = rasc.pagador; editando.tipoRateio = rasc.rateio;
     delete editando.estimado; delete editando.base;
     editando.atualizadoEm = agora();
+  } else if (rasc.parcelas > 1) {
+    const tot = totalDaCompra();
+    const ps = gerarParcelas(tot, rasc.parcelas);
+    const grupo = novoId();
+    const base = { descricao: $('f-desc').value.trim(), pagador: rasc.pagador, icone: rasc.icone,
+      categoria: rasc.categoria, natureza: 'Parcelada', escopo: 'fatura', tipoRateio: rasc.rateio,
+      parcelaGrupoId: grupo, valorTotalCompraCent: tot,
+      criadoPor: dados.prefs.eu, criadoEm: agora(), atualizadoEm: agora(), excluidoEm: null };
+    ps.forEach((valor, i) => dados.lancamentos.push({ ...base, id: novoId(), valorCent: valor,
+      competencia: desloca(rasc.comp, i), parcela: `${i+1}/${rasc.parcelas}`,
+      dataDespesa: i === 0 ? rasc.data : null }));
   } else {
     dados.lancamentos.push({
       id: novoId(), descricao: $('f-desc').value.trim(), valorCent: v, pagador: rasc.pagador,
@@ -767,6 +834,15 @@ function gravar() {
 
 function remover() {
   if (!editando) return;
+  const g = editando.parcelaGrupoId;
+  if (g) {
+    const irmas = dados.lancamentos.filter(l => l.parcelaGrupoId === g && !l.excluidoEm);
+    const futuras = irmas.filter(l => l.competencia >= COMP);
+    if (futuras.length > 1 && confirm(`Esta compra tem ${irmas.length} parcelas, ${futuras.length} ainda por vencer.\n\nOK = apagar todas as que faltam\nCancelar = apagar só a deste mês`)) {
+      futuras.forEach(l => { l.excluidoEm = agora(); l.atualizadoEm = agora(); });
+      invalidarAprovacoes(COMP); salvar(); fecharFolha(); pintar(); return;
+    }
+  }
   editando.excluidoEm = agora(); editando.atualizadoEm = agora();
   invalidarAprovacoes(COMP);
   salvar(); fecharFolha(); pintar();
