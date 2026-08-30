@@ -673,9 +673,13 @@ function pintar() {
   });
 }
 
+const ddmm = iso => iso ? iso.slice(8,10) + '/' + iso.slice(5,7) : '';
+
 function linha(l, estimado) {
+  const parc = l.parcela
+    ? ` · ${l.parcela}${l.valorTotalCompraCent ? ' de ' + BRL(l.valorTotalCompraCent) : ''}` : '';
   const meta = estimado ? `<span class="selo-est">estimado</span> · ${l.base}`
-    : `${l.pagador}${l.parcela ? ' · ' + l.parcela : ''}${l.tipoRateio !== 'igual' ? ' · só de um' : ''}`;
+    : `${l.pagador}${l.dataDespesa ? ' · ' + ddmm(l.dataDespesa) : ''}${parc}${l.tipoRateio !== 'igual' ? ' · só de um' : ''}`;
   return `<button class="item${estimado ? ' est' : ''}" data-id="${l.id}">
     <div class="tag ${ini(l.pagador)}">${l.icone}</div>
     <div class="info"><div class="d">${l.descricao}</div>
@@ -692,16 +696,25 @@ function pintarEu() {
 function abrirFolha(id) {
   editando = id ? dados.lancamentos.find(l => l.id === id) : null;
   if (editando) {
+    const sub = editando.estimado
+      ? `Estimado em ${BRL(editando.valorCent)} — ${editando.base}. Ajuste para o valor real.`
+      : (editando.parcela
+          ? `Parcela ${editando.parcela}${editando.valorTotalCompraCent ? ' de uma compra de ' + BRL(editando.valorTotalCompraCent) : ''}. Alterar aqui muda só esta parcela.`
+          : 'Corrija os dados ou remova o lançamento.');
     $('cab-folha').innerHTML = `<div class="titulo-folha">${editando.estimado ? 'Confirmar' : 'Editar'} ${editando.descricao}</div>
-      <div class="sub-folha">${editando.estimado ? `Estimado em ${BRL(editando.valorCent)} — ${editando.base}. Ajuste para o valor real.`
-        : 'Corrija o valor ou remova o lançamento.'}</div>`;
+      <div class="sub-folha">${sub}</div>`;
     $('f-valor').value = (editando.valorCent / 100).toFixed(2).replace('.', ',');
     $('f-desc').value = editando.descricao;
     rasc.pagador = editando.pagador; rasc.icone = editando.icone; rasc.rateio = editando.tipoRateio;
-    ['c-desc','c-quando','c-parc','c-cat','c-rat'].forEach(k => $(k).hidden = true);
-    $('salvar').textContent = editando.estimado ? 'Confirmar valor' : 'Salvar alteração';
+    rasc.categoria = editando.categoria || rasc.categoria;
+    rasc.data = editando.dataDespesa || hojeISO(); $('f-data').value = rasc.data;
+    rasc.comp = editando.competencia; rasc.parcelas = 1;
+    const est = !!editando.estimado;
+    $('c-desc').hidden = est; $('c-parc').hidden = true;
+    ['c-quando','c-cat','c-rat'].forEach(k => $(k).hidden = est);
+    $('salvar').textContent = est ? 'Confirmar valor' : 'Salvar alteração';
     $('remover').hidden = false;
-    $('remover').textContent = editando.estimado ? 'Não teve este mês' : 'Remover lançamento';
+    $('remover').textContent = est ? 'Não teve este mês' : 'Remover lançamento';
   } else {
     $('cab-folha').innerHTML = '';
     $('f-valor').value = ''; $('f-desc').value = '';
@@ -719,7 +732,7 @@ function abrirFolha(id) {
 const fecharFolha = () => { $('fundo').classList.remove('on'); $('folha').classList.remove('on'); };
 
 function atualizarQuando() {
-  if (editando) return;
+  if (editando && editando.estimado) return;
   const derivada = competenciaDe(rasc.data, CORTE);
   const fechada = derivada < COMP;
   if (fechada) rasc.comp = COMP;
@@ -817,7 +830,7 @@ function gravar() {
       criadoPor: dados.prefs.eu, criadoEm: agora(), atualizadoEm: agora(), excluidoEm: null };
     ps.forEach((valor, i) => dados.lancamentos.push({ ...base, id: novoId(), valorCent: valor,
       competencia: desloca(rasc.comp, i), parcela: `${i+1}/${rasc.parcelas}`,
-      dataDespesa: i === 0 ? rasc.data : null }));
+      dataDespesa: rasc.data }));
   } else {
     dados.lancamentos.push({
       id: novoId(), descricao: $('f-desc').value.trim(), valorCent: v, pagador: rasc.pagador,
@@ -866,7 +879,7 @@ function resumoTexto(c) {
   const tr = (dados.transferencias||[]).filter(x => x.competencia === c && x.finalidade === 'adiantamento' && x.considerar !== false);
   if (tr.length) { t += `\nCRÉDITOS\n`; tr.forEach(x => t += `${x.de} → ${x.para}: ${BRL(x.valorCent)}${x.obs ? ' — ' + x.obs : ''}\n`); }
   t += `\n>>> ${ac ? `${ac.de} transfere a ${ac.para} ${BRL(ac.valorCent)}` : 'Nada a acertar'}\n\nLANÇAMENTOS\n`;
-  L.forEach(l => t += `${l.icone} ${l.descricao}${l.parcela?' ('+l.parcela+')':''} — ${BRL(l.valorCent)} — ${l.pagador}${l.estimado?' [estimado]':''}\n`);
+  L.forEach(l => t += `${l.icone} ${l.descricao}${l.dataDespesa?' '+ddmm(l.dataDespesa):''}${l.parcela?' ('+l.parcela+(l.valorTotalCompraCent?' de '+BRL(l.valorTotalCompraCent):'')+')':''} — ${BRL(l.valorCent)} — ${l.pagador}${l.estimado?' [estimado]':''}\n`);
   return t;
 }
 
@@ -921,7 +934,7 @@ function pintarDoc(c) {
     ${pago.obs?`<div class="dl"><span>Observação</span><span>${pago.obs}</span></div>`:''}`;
 
   h += `<h3>Lançamentos</h3>`;
-  L.forEach(l => h += `<div class="dl"><span>${l.icone} ${l.descricao}${l.parcela?' · '+l.parcela:''} — ${l.pagador}${l.estimado?' · estimado':''}</span><span>${BRL(l.valorCent)}</span></div>`);
+  L.forEach(l => h += `<div class="dl"><span>${l.icone} ${l.descricao}${l.dataDespesa?' · '+ddmm(l.dataDespesa):''}${l.parcela?' · '+l.parcela+(l.valorTotalCompraCent?' de '+BRL(l.valorTotalCompraCent):''):''} — ${l.pagador}${l.estimado?' · estimado':''}</span><span>${BRL(l.valorCent)}</span></div>`);
 
   $('doc-corpo').innerHTML = h;
   $('doc-titulo').textContent = `${tituloComp(c)} · ${ROT[k.status]}`;
