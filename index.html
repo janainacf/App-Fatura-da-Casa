@@ -349,8 +349,9 @@ body.sobrio *{transition:none!important;animation:none!important}
     nunca repete, e vários marcos cruzados de uma vez viram um aviso só.
     <br><br><b>Compras parceladas.</b> Ao lançar, escolha em quantas vezes. Todas as parcelas são criadas de uma
     vez, uma em cada mês, com o número certo — e somem sozinhas quando a última vence.
-    <br><br><b>Onde os dados ficam.</b> Só neste aparelho, no navegador. Ainda não há sincronização —
-    o que você lança aqui a outra pessoa não vê no aparelho dela. Esse é o próximo passo.
+    <br><br><b>Onde os dados ficam.</b> Neste aparelho, no navegador — sempre. Conectando a casa,
+    cada lançamento também sobe para a nuvem e aparece no aparelho da outra pessoa em segundos.
+    A nuvem nunca apaga nada daqui: só acrescenta e atualiza.
     <div class="sinc" id="sinc"><i></i><span id="sinc-txt">Só neste aparelho</span>
       <button id="sinc-btn">Conectar</button></div>
     <div class="cfg">
@@ -576,6 +577,13 @@ let dados = (() => {
     return d;
   } catch (e) { return vazio(); }
 })();
+
+/* Estado da nuvem. Declarado AQUI, e não junto do resto da camada de
+   sincronização no fim do arquivo, porque salvar() chama enfileirar(), que lê
+   casaId. As migrações de abertura gravam antes daquele ponto: com a
+   declaração lá embaixo, a primeira gravação estourava — e só em quem já
+   tinha dados, porque só esses passam pela migração. */
+let sb = null, sessao = null, casaId = null, canal = null, sincronizando = false;
 
 const salvar = () => {
   armazem.gravar(CHAVE, JSON.stringify(dados));
@@ -1290,7 +1298,8 @@ if (configurado()) $('titulo').textContent = tituloComp(COMP);
 const SUPA_URL = 'https://iafbaizkbeuscbjbctms.supabase.co';
 const SUPA_KEY = 'sb_publishable_KEYqm5sTMEluXqmIVJrCfQ_iyPbCxy4';
 
-let sb = null, sessao = null, casaId = null, canal = null, sincronizando = false;
+/* sb, sessao, casaId, canal e sincronizando são declarados lá em cima, junto
+   de salvar() — veja o comentário de lá. */
 
 function cliente() {
   if (sb) return sb;
