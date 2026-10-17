@@ -147,6 +147,8 @@ h2 em{font-style:normal;color:var(--aviso);font-weight:600;font-family:'IBM Plex
 .info .aut{font-size:11.5px;color:var(--fraca);opacity:.72;line-height:1.3;margin-top:2px;
   white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .dl-aut{display:block;font-style:normal;font-size:11.5px;color:var(--fraca);opacity:.72;margin-top:1px}
+.versao{margin-top:18px;text-align:center;font-size:11.5px;color:var(--fraca);opacity:.6;
+  font-family:'IBM Plex Mono',monospace}
 .dot{width:5px;height:5px;border-radius:99px;flex:0 0 auto}
 .dot.p0{background:var(--p0)} .dot.p1{background:var(--p1)}
 .selo-est{font-size:11px;font-weight:600;color:var(--aviso);letter-spacing:.04em;text-transform:uppercase}
@@ -381,6 +383,7 @@ body.sobrio *{transition:none!important;animation:none!important}
       levar a configuração para o outro aparelho enquanto não há sincronização.
     </div>
     <button class="perigo" id="zerar">Apagar tudo deste aparelho</button>
+    <div class="versao">versão <b id="versao-n">—</b></div>
   </div>
 </div>
 
@@ -789,17 +792,18 @@ function pintar() {
 
 const ddmm = iso => iso ? iso.slice(8,10) + '/' + iso.slice(5,7) : '';
 
-/** Quem mexeu no lançamento. Fixas e parcelas entram sozinhas no início do
- *  ciclo: dizer "sistema" em 26 linhas seria ruído, então essas só falam
- *  quando alguém de fato tocou nelas. E "corrigido por" só aparece quando
- *  é outra pessoa — ninguém precisa saber que corrigiu a si mesma. */
+/** A linha só fala quando alguém MEXEU num lançamento depois de criado.
+ *  Quem criou não aparece: numa casa de duas pessoas isso é quase sempre
+ *  óbvio, e repetir em toda linha enchia a fatura sem informar nada. O que
+ *  gera conversa no fechamento é a alteração — e de quem partiu. */
 function autoria(l) {
-  const sis = !l.criadoPor || l.criadoPor === 'sistema';
-  const cri = sis ? null : l.criadoPor;
-  const alt = l.atualizadoPor && l.atualizadoPor !== l.criadoPor ? l.atualizadoPor : null;
-  if (!cri && !alt) return '';
-  if (!cri) return `ajustado por ${alt}`;
-  return `por ${cri}${alt ? ` · corrigido por ${alt}` : ''}`;
+  const alt = l.atualizadoPor;
+  if (!alt) return '';
+  /* Fixa ou parcela que entrou sozinha e alguém confirmou o valor real:
+     "ajustado" descreve melhor que "corrigido", que sugeriria engano. */
+  if (!l.criadoPor || l.criadoPor === 'sistema') return `ajustado por ${alt}`;
+  if (alt === l.criadoPor) return '';   /* mexer no próprio não é notícia */
+  return `corrigido por ${alt}`;
 }
 
 function linha(l, estimado) {
@@ -1185,8 +1189,13 @@ function pintarDoc(c) {
     MEMBROS.forEach(m => h += `<button class="${k.aprovacoes[m]?'on':''}" data-ap="${m}">
       <span class="marca">${k.aprovacoes[m]?'✓':''}</span><span>${m} conferiu e concorda</span>
       <span class="quando">${k.aprovacoes[m]?dataBR(k.aprovacoes[m]):'—'}</span></button>`);
+    /* O texto muda conforme a casa esteja ou não na nuvem: com sincronização,
+       cada um marca o próprio de acordo no próprio aparelho; sem ela, uma
+       pessoa marca os dois a partir do que a outra disse por mensagem. */
     h += `</div><div style="font-size:12.5px;color:var(--fraca);line-height:1.45">
-      Enquanto não há sincronização, marque aqui o de acordo que a outra pessoa der por mensagem.
+      ${casaId
+        ? 'Cada um marca o próprio de acordo, no próprio aparelho — a marcação aparece do outro lado em segundos.'
+        : 'Sem sincronização, marque aqui o de acordo que a outra pessoa der por mensagem.'}
       Qualquer alteração num lançamento derruba as duas marcações.</div>`;
   } else if (k.status !== 'aberto') {
     h += `<h3>De acordo</h3>`;
@@ -1299,8 +1308,15 @@ let promptInst = null;
 addEventListener('beforeinstallprompt', e => { e.preventDefault(); promptInst = e; $('faixa-inst').hidden = false; });
 $('btn-inst').onclick = async () => { if (!promptInst) return; promptInst.prompt(); await promptInst.userChoice; promptInst = null; $('faixa-inst').hidden = true; };
 
+/* Marca de versão. Existe para responder, de dentro do aparelho, "qual código
+   está rodando aqui?" — pergunta que já custou uma tarde de diagnóstico às
+   cegas. Aparece no fim dos ajustes. */
+const VERSAO = '2026-10-17.5';
+
 if ('serviceWorker' in navigator && location.protocol.startsWith('http'))
-  addEventListener('load', () => navigator.serviceWorker.register('./sw.js').catch(() => {}));
+  addEventListener('load', () => navigator.serviceWorker.register('./sw.js')
+    .then(r => r.update())      /* procura versão nova a cada abertura */
+    .catch(() => {}));
 
 /* primeira abertura: sem membros cadastrados, só a tela de carga */
 const configurado = () => MEMBROS.length > 0;
@@ -1728,6 +1744,7 @@ $('sinc-btn').onclick = () => {
   sincronizar(true);
 };
 
+$('versao-n').textContent = VERSAO;
 $('dias').textContent = diasAteCorte() + (diasAteCorte() === 1 ? ' dia' : ' dias');
 if (dados.prefs.sobrio) { $('sw').classList.add('on'); document.body.classList.add('sobrio'); }
 if (configurado()) { pintarEu(); pintarCfg(); pintar(); }
