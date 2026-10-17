@@ -338,13 +338,19 @@ body.sobrio *{transition:none!important;animation:none!important}
 
   <div id="setup" hidden>
     <div class="lista" style="padding:22px 18px">
-      <div style="font-size:17px;font-weight:600;margin-bottom:6px">Primeira abertura</div>
+      <div style="font-size:17px;font-weight:600;margin-bottom:6px">Primeiro acesso</div>
       <div style="font-size:14px;color:var(--fraca);line-height:1.5;margin-bottom:16px">
-        Cole abaixo os dados de partida que você recebeu. Eles ficam só neste aparelho —
-        nada é enviado para lugar nenhum.
+        Crie sua conta e entre com o código de 6 caracteres que a outra pessoa da casa te passou.
+        Daí em diante, os dois veem a mesma fatura, ao vivo.
       </div>
-      <textarea class="txt" id="setup-txt" rows="6" placeholder="Cole aqui" style="font-family:'IBM Plex Mono',monospace;font-size:12px"></textarea>
-      <button class="salvar" id="setup-ok" style="margin-top:12px">Carregar dados</button>
+      <button class="salvar" id="setup-conectar">Conectar</button>
+      <!-- Restaurar uma cópia de segurança continua possível, mas não é mais
+           a porta de entrada: com a nuvem, ninguém precisa colar dados. -->
+      <button class="alt" id="setup-copia" style="margin-top:6px">Tenho uma cópia de dados</button>
+      <div id="setup-colar" hidden>
+        <textarea class="txt" id="setup-txt" rows="6" placeholder="Cole aqui a cópia gerada por “Copiar meus dados”" style="font-family:'IBM Plex Mono',monospace;font-size:12px;margin-top:10px"></textarea>
+        <button class="salvar" id="setup-ok" style="margin-top:12px">Carregar dados</button>
+      </div>
       <div id="setup-erro" style="color:#8E2226;font-size:13px;margin-top:10px" hidden></div>
     </div>
   </div>
@@ -1402,7 +1408,7 @@ $('btn-inst').onclick = async () => { if (!promptInst) return; promptInst.prompt
 /* Marca de versão. Existe para responder, de dentro do aparelho, "qual código
    está rodando aqui?" — pergunta que já custou uma tarde de diagnóstico às
    cegas. Aparece no fim dos ajustes. */
-const VERSAO = '2026-10-17.9';
+const VERSAO = '2026-10-17.10';
 
 if ('serviceWorker' in navigator && location.protocol.startsWith('http'))
   addEventListener('load', () => navigator.serviceWorker.register('./sw.js')
@@ -1422,6 +1428,8 @@ function aplicarImportado(txt) {
   armazem.gravar(CHAVE, JSON.stringify(d));
 }
 
+$('setup-conectar').onclick = () => telaConta('criar');
+$('setup-copia').onclick = () => { $('setup-colar').hidden = false; $('setup-copia').hidden = true; };
 $('setup-ok').onclick = () => {
   try { aplicarImportado($('setup-txt').value.trim()); location.reload(); }
   catch (e) { $('setup-erro').hidden = false; $('setup-erro').textContent =
@@ -1719,7 +1727,11 @@ function telaConta(modo, msg) {
     if (!mail || senha.length < 6)
       return telaConta(modo, { t: 'Informe o e-mail e uma senha de pelo menos 6 caracteres.' });
     $('n-ok').disabled = true; $('n-ok').textContent = 'Aguarde…';
-    let r = criar ? await c.auth.signUp({ email: mail, password: senha })
+    /* emailRedirectTo: o link de confirmação traz de volta a este app. Se o
+       endereço não estiver liberado no Supabase, ele cai no "Site URL" — o
+       comportamento de antes —, então não há o que perder. */
+    let r = criar ? await c.auth.signUp({ email: mail, password: senha,
+                      options: { emailRedirectTo: location.origin + location.pathname } })
                   : await c.auth.signInWithPassword({ email: mail, password: senha });
 
     /* signUp sem sessão significa uma de duas coisas: o projeto exige confirmação
@@ -1745,6 +1757,10 @@ function telaConta(modo, msg) {
 
 function telaCasa(msg) {
   $('nuvem').hidden = false;
+  /* Aparelho vazio não tem nada a subir: "criar a casa" a partir dele
+     fabricaria uma casa vazia, separada da verdadeira — e quem tocasse ali
+     por engano ficaria preso nela. Então, sem dados, só se oferece entrar. */
+  if (!MEMBROS.length) return telaEntrar(msg, true);
   const n = dados.lancamentos.filter(l => !l.excluidoEm).length;
   $('nuvem-cx').innerHTML = `
     <h2>A casa</h2>
@@ -1758,19 +1774,27 @@ function telaCasa(msg) {
     <button class="alt" id="c-sair">Agora não</button>`;
   $('c-sair').onclick = nuvemFecha;
   $('c-criar').onclick = criarCasa;
-  $('c-entrar').onclick = () => {
-    $('nuvem-cx').innerHTML = `
-      <h2>Entrar na casa</h2>
-      <p>Digite o código que a outra pessoa te passou e o seu nome, exatamente como ele aparece na fatura.</p>
-      <div class="campo"><label>Código</label>
-        <input class="txt" id="c-cod" autocomplete="off" style="text-transform:uppercase"></div>
-      <div class="campo"><label>Seu nome na fatura</label>
-        <input class="txt" id="c-nome" autocomplete="off"></div>
-      <button class="salvar" id="c-ok">Entrar</button>
-      <button class="alt" id="c-volta">Voltar</button>`;
-    $('c-volta').onclick = () => telaCasa();
-    $('c-ok').onclick = entrarNaCasa;
-  };
+  $('c-entrar').onclick = () => telaEntrar();
+}
+
+/** Tela de entrada por código. `unica` = é a única opção (aparelho vazio):
+ *  aí o botão de baixo fecha, em vez de voltar para uma escolha que não há.
+ *  Em caso de erro, o que a pessoa digitou volta preenchido. */
+function telaEntrar(msg, unica, cod = '', nome = '') {
+  $('nuvem').hidden = false;
+  $('nuvem-cx').innerHTML = `
+    <h2>Entrar na casa</h2>
+    <p>Digite o código de 6 caracteres que a outra pessoa te passou e o seu nome, como ele aparece na fatura.</p>
+    ${msg ? `<div class="${msg.ok ? 'ok' : 'erro'}">${msg.t}</div>` : ''}
+    <div class="campo"><label>Código</label>
+      <input class="txt" id="c-cod" autocomplete="off" style="text-transform:uppercase"></div>
+    <div class="campo"><label>Seu nome na fatura</label>
+      <input class="txt" id="c-nome" autocomplete="off"></div>
+    <button class="salvar" id="c-ok">Entrar</button>
+    <button class="alt" id="c-volta">${unica ? 'Agora não' : 'Voltar'}</button>`;
+  $('c-cod').value = cod; $('c-nome').value = nome;
+  $('c-volta').onclick = unica ? nuvemFecha : () => telaCasa();
+  $('c-ok').onclick = entrarNaCasa;
 }
 
 async function criarCasa() {
@@ -1832,7 +1856,7 @@ async function entrarNaCasa() {
   if (!cod || !nome) return;
   $('c-ok').disabled = true; $('c-ok').textContent = 'Aguarde…';
   const { data, error } = await c.rpc('entrar_na_casa', { p_codigo: cod, p_nome: nome });
-  if (error) { telaCasa({ t: error.message }); return; }
+  if (error) { telaEntrar({ t: error.message }, !MEMBROS.length, cod, nome); return; }
   casaId = data;
   dados.casa.id = casaId;
   dados.prefs.eu = nome;
