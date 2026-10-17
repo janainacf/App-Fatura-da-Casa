@@ -7,10 +7,10 @@
 -- ─── Tabelas ───────────────────────────────────────────────────────────────
 
 create table if not exists public.casa (
-  id              uuid primary key default gen_random_uuid(),
+  id              text primary key default gen_random_uuid()::text,
   nome            text        not null default 'Casa',
   dia_corte       int         not null default 20 check (dia_corte between 1 and 28),
-  teto_cent       bigint      not null default 350000,
+  teto_cent       bigint      not null default 300000,
   alertas         boolean     not null default true,
   codigo_convite  text        not null unique default upper(substr(md5(random()::text), 1, 6)),
   recorrencias    jsonb       not null default '[]'::jsonb,
@@ -22,7 +22,7 @@ create table if not exists public.casa (
 
 create table if not exists public.membro (
   id            uuid primary key default gen_random_uuid(),
-  casa_id       uuid        not null references public.casa(id) on delete cascade,
+  casa_id       text        not null references public.casa(id) on delete cascade,
   user_id       uuid        not null references auth.users(id)  on delete cascade,
   nome_exibicao text        not null,
   ordem         int         not null default 0,
@@ -34,8 +34,8 @@ create table if not exists public.membro (
 -- O id vem do cliente: preserva os identificadores que já existem no aparelho
 -- e torna a migração idempotente (reenviar não duplica).
 create table if not exists public.lancamento (
-  id                      uuid primary key,
-  casa_id                 uuid        not null references public.casa(id) on delete cascade,
+  id                      text primary key,
+  casa_id                 text        not null references public.casa(id) on delete cascade,
   competencia             text        not null,
   descricao               text        not null,
   valor_cent              bigint,
@@ -55,14 +55,15 @@ create table if not exists public.lancamento (
   base                    text,
   obs                     text,
   criado_por              text,
+  atualizado_por          text,
   criado_em               timestamptz not null default now(),
   atualizado_em           timestamptz not null default now(),
   excluido_em             timestamptz
 );
 
 create table if not exists public.transferencia (
-  id            uuid primary key,
-  casa_id       uuid        not null references public.casa(id) on delete cascade,
+  id            text primary key,
+  casa_id       text        not null references public.casa(id) on delete cascade,
   competencia   text        not null,
   de_membro     text        not null,
   para_membro   text        not null,
@@ -78,7 +79,7 @@ create table if not exists public.transferencia (
 );
 
 create table if not exists public.ciclo (
-  casa_id       uuid        not null references public.casa(id) on delete cascade,
+  casa_id       text        not null references public.casa(id) on delete cascade,
   competencia   text        not null,
   status        text        not null default 'aberto',
   aprovacoes    jsonb       not null default '{}'::jsonb,
@@ -100,11 +101,11 @@ create index if not exists ix_membro_user    on public.membro (user_id);
 -- consultasse `membro` entraria em laço infinito.
 
 create or replace function public.minhas_casas()
-returns setof uuid
+returns setof text
 language sql stable security definer set search_path = public
 as $$ select casa_id from public.membro where user_id = auth.uid() $$;
 
-create or replace function public.meu_nome(p_casa uuid)
+create or replace function public.meu_nome(p_casa text)
 returns text
 language sql stable security definer set search_path = public
 as $$ select nome_exibicao from public.membro
@@ -149,10 +150,10 @@ end $$;
 -- ─── Entrar numa casa pelo código de convite ───────────────────────────────
 
 create or replace function public.entrar_na_casa(p_codigo text, p_nome text)
-returns uuid
+returns text
 language plpgsql security definer set search_path = public
 as $$
-declare v_casa uuid;
+declare v_casa text;
 begin
   select id into v_casa from public.casa
     where codigo_convite = upper(trim(p_codigo));
@@ -175,10 +176,23 @@ begin
   end if;
 end $$;
 
-alter publication supabase_realtime add table public.lancamento;
-alter publication supabase_realtime add table public.transferencia;
-alter publication supabase_realtime add table public.ciclo;
-alter publication supabase_realtime add table public.casa;
+-- Incluir uma tabela que já está na publicação é ERRO no Postgres, não
+-- silêncio. Sem este laço, a segunda execução do arquivo parava aqui com
+-- 42710 e a transação inteira era desfeita.
+do $$
+declare t text;
+begin
+  foreach t in array array['lancamento','transferencia','ciclo','casa'] loop
+    if not exists (
+      select 1 from pg_publication_tables
+      where pubname = 'supabase_realtime'
+        and schemaname = 'public'
+        and tablename = t
+    ) then
+      execute format('alter publication supabase_realtime add table public.%I', t);
+    end if;
+  end loop;
+end $$;
 
 -- Realtime precisa da linha inteira para avisar o outro aparelho sobre edições.
 alter table public.lancamento    replica identity full;
