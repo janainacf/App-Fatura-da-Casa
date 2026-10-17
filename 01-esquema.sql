@@ -55,6 +55,7 @@ create table if not exists public.lancamento (
   base                    text,
   obs                     text,
   criado_por              text,
+  atualizado_por          text,
   criado_em               timestamptz not null default now(),
   atualizado_em           timestamptz not null default now(),
   excluido_em             timestamptz

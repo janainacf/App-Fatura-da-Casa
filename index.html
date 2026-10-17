@@ -144,6 +144,8 @@ h2 em{font-style:normal;color:var(--aviso);font-weight:600;font-family:'IBM Plex
 .info .d{font-size:15px;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .info .m{font-size:12.5px;color:var(--fraca);display:flex;gap:5px;align-items:center;
   flex-wrap:wrap;line-height:1.35;margin-top:1px}
+.info .aut{font-size:11.5px;color:var(--fraca);opacity:.72;line-height:1.3;margin-top:2px;
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .dot{width:5px;height:5px;border-radius:99px;flex:0 0 auto}
 .dot.p0{background:var(--p0)} .dot.p1{background:var(--p1)}
 .selo-est{font-size:11px;font-weight:600;color:var(--aviso);letter-spacing:.04em;text-transform:uppercase}
@@ -344,9 +346,11 @@ body.sobrio *{transition:none!important;animation:none!important}
   <div id="vazio-ciclo"></div>
 
   <div class="rodape">
-    <b>Teto do mês.</b> A barra mostra do que o mês é feito: fixas e parcelas já contratadas
-    de um lado, o que vocês gastaram de outro. O aviso sai uma vez por marco, por ciclo —
-    nunca repete, e vários marcos cruzados de uma vez viram um aviso só.
+    <b>Teto da transferência.</b> O teto não é sobre o total da fatura — é sobre quanto um
+    transfere ao outro no fechamento. A barra separa, dentro desse valor, o que já estava
+    comprometido em fixas e parcelas e o que veio do resto do mês. O aviso sai uma vez por
+    marco, por ciclo — nunca repete, e vários marcos cruzados de uma vez viram um aviso só.
+    Passou do teto, adiar lançamentos para a próxima fatura é o que faz o valor baixar.
     <br><br><b>Compras parceladas.</b> Ao lançar, escolha em quantas vezes. Todas as parcelas são criadas de uma
     vez, uma em cada mês, com o número certo — e somem sozinhas quando a última vence.
     <br><br><b>Onde os dados ficam.</b> Neste aparelho, no navegador — sempre. Conectando a casa,
@@ -355,7 +359,7 @@ body.sobrio *{transition:none!important;animation:none!important}
     <div class="sinc" id="sinc"><i></i><span id="sinc-txt">Só neste aparelho</span>
       <button id="sinc-btn">Conectar</button></div>
     <div class="cfg">
-      <span>Teto do mês</span>
+      <span>Teto da transferência</span>
       <input id="cfg-teto" inputmode="decimal" autocomplete="off">
       <span style="font-size:12px;color:var(--fraca)">R$</span>
     </div>
@@ -627,6 +631,15 @@ if (MEMBROS.length && !dados.prefs.eu) { dados.prefs.eu = MEMBROS[0]; salvar(); 
    medidor não apareceria para quem já usava o app. */
 if (dados.casa.tetoCent === undefined) { dados.casa.tetoCent = 350000; salvar(); }
 if (dados.casa.alertas === undefined)  { dados.casa.alertas = true;   salvar(); }
+
+/* O teto passou a medir a TRANSFERÊNCIA, não o total da fatura. Os marcos já
+   disparados valiam para a régua antiga — mantê-los deixaria meses marcados
+   como estourados que na régua nova nem chegam a 70%. Zera uma única vez. */
+if (dados.casa.tetoBase !== 'acerto') {
+  Object.values(dados.ciclos).forEach(k => { if (k && k.marcos) k.marcos = []; });
+  dados.casa.tetoBase = 'acerto';
+  salvar();
+}
 if (MEMBROS.length) semear(COMP);
 
 /* deslocamento em meses sobre uma competência */
@@ -750,8 +763,8 @@ function pintar() {
     </div>`;
   }).join('');
 
-  pintarTeto(a.total, L);
-  if (distancia(COMP) === 0) checarMarcos(a.total, L);
+  pintarTeto(ac, L);
+  if (distancia(COMP) === 0) checarMarcos(ac, L);
 
   let html = '';
   if (ciclo(COMP).status === 'aberto' || ciclo(COMP).status === 'conferencia') {
@@ -771,70 +784,99 @@ function pintar() {
 
 const ddmm = iso => iso ? iso.slice(8,10) + '/' + iso.slice(5,7) : '';
 
+/** Quem mexeu no lançamento. Fixas e parcelas entram sozinhas no início do
+ *  ciclo: dizer "sistema" em 26 linhas seria ruído, então essas só falam
+ *  quando alguém de fato tocou nelas. E "corrigido por" só aparece quando
+ *  é outra pessoa — ninguém precisa saber que corrigiu a si mesma. */
+function autoria(l) {
+  const sis = !l.criadoPor || l.criadoPor === 'sistema';
+  const cri = sis ? null : l.criadoPor;
+  const alt = l.atualizadoPor && l.atualizadoPor !== l.criadoPor ? l.atualizadoPor : null;
+  if (!cri && !alt) return '';
+  if (!cri) return `ajustado por ${alt}`;
+  return `por ${cri}${alt ? ` · corrigido por ${alt}` : ''}`;
+}
+
 function linha(l, estimado) {
   const parc = l.parcela
     ? ` · ${l.parcela}${l.valorTotalCompraCent ? ' de ' + BRL(l.valorTotalCompraCent) : ''}` : '';
   const meta = estimado ? `<span class="selo-est">estimado</span> · ${l.base}`
     : `${l.pagador}${l.dataDespesa ? ' · ' + ddmm(l.dataDespesa) : ''}${parc}${l.tipoRateio !== 'igual' ? ' · só de um' : ''}`;
+  const aut = autoria(l);
   return `<button class="item${estimado ? ' est' : ''}" data-id="${l.id}">
     <div class="tag ${ini(l.pagador)}">${l.icone}</div>
     <div class="info"><div class="d">${l.descricao}</div>
-      <div class="m">${estimado ? '' : `<span class="dot ${ini(l.pagador)}"></span>`}${meta}</div></div>
+      <div class="m">${estimado ? '' : `<span class="dot ${ini(l.pagador)}"></span>`}${meta}</div>
+      ${aut ? `<div class="aut">${aut}</div>` : ''}</div>
     <div class="vlr${estimado ? ' est' : ''}">${BRL(l.valorCent)}</div></button>`;
 }
 
 
-/* ═══ Teto do mês ═══════════════════════════════════════════════════════════
-   O teto é uma meta, não um limite de bloqueio. Como as despesas fixas e as
-   parcelas já contratadas entram sozinhas no início do ciclo, o medidor mostra
-   a COMPOSIÇÃO — o que é inevitável e o que foi gasto no mês — em vez de uma
-   barra única que diria só "acima" todo mês.                               */
+/* ═══ Teto da transferência ═════════════════════════════════════════════════
+   O teto NÃO é sobre o total da fatura — é sobre quanto um transfere ao outro
+   no fim do mês. É esse valor que sai da conta de alguém, e é o único que dá
+   para controlar: o total da fatura é quase todo fixa e parcela já contratada.
 
-/* Acima de 100% os marcos continuam: num mês que abre em 128%, os quatro
-   primeiros se esgotam na abertura e o restante do ciclo ficaria sem sinal. */
+   O medidor mostra, dentro da transferência, a parte que já estava comprometida
+   antes de qualquer compra do mês — fixas e parcelas. Essa parte é calculada
+   rodando o mesmo motor só sobre esses lançamentos, não por estimativa.      */
+
+/* Acima de 100% os marcos continuam: num mês que já abre acima do teto, os
+   quatro primeiros se esgotam na abertura e o resto do ciclo ficaria mudo. */
 const MARCOS = [70, 80, 90, 100, 125, 150, 200];
 const tetoCent = () => dados.casa.tetoCent || 0;
 
-function composicao(L) {
-  const g = { fixa: 0, parc: 0, var: 0 };
-  L.forEach(l => {
-    const n = l.natureza || 'Variável';
-    if (n === 'Fixa') g.fixa += l.valorCent;
-    else if (n === 'Parcelada') g.parc += l.valorCent;
-    else g.var += l.valorCent;
-  });
-  return g;
+/** Transferência que fixas e parcelas já contratadas produziriam sozinhas.
+ *  Roda o motor sobre o subconjunto, sem adiantamentos — eles são abatimento
+ *  do mês, não compromisso prévio. Só conta quando aponta na mesma direção da
+ *  transferência real; caso contrário não há comprometido a mostrar.
+ *  Devolve o valor BRUTO: pode ser maior que a transferência real, e é
+ *  justamente esse caso que revela quanto o resto do mês abateu. */
+function comprometidoCent(L, ac) {
+  if (!ac) return 0;
+  const fixas = L.filter(l => l.natureza === 'Fixa' || l.natureza === 'Parcelada');
+  if (!fixas.length) return 0;
+  const sub = apurar(fixas, [], MEMBROS, COMP);
+  const sac = gerarAcerto(sub.saldo, MEMBROS)[0];
+  if (!sac || sac.de !== ac.de) return 0;
+  return sac.valorCent;
 }
 
-function pintarTeto(total, L) {
+function pintarTeto(ac, L) {
   const t = tetoCent(), cx = $('teto');
   if (!t) { cx.innerHTML = ''; return; }
-  const g = composicao(L);
-  const pct = total / t * 100;
-  const escala = Math.max(total, t) * 1.08;
-  const w = v => (v / escala * 100).toFixed(2) + '%';
-  const dif = total - t;
+  const v = ac ? ac.valorCent : 0;
+  const bruto = comprometidoCent(L, ac);
+  const comp = Math.min(bruto, v);        // o que cabe dentro da transferência
+  const abatido = Math.max(bruto - v, 0); // o quanto o resto do mês derrubou
+  const resto = v - comp;
+  const pct = v / t * 100;
+  const escala = Math.max(v, t) * 1.08;
+  const w = x => (x / escala * 100).toFixed(2) + '%';
+  const dif = v - t;
+  const nota = [];
+  if (v === 0) nota.push('Ninguém transfere nada neste ciclo.');
+  else if (dif > 0) {
+    nota.push(`${BRL(dif)} acima do teto.`);
+    if (comp) nota.push(`${BRL(comp)} já estavam comprometidos antes de qualquer compra.`);
+    nota.push('Adiar lançamentos para a próxima fatura reduz este valor.');
+  } else nota.push(`Faltam ${BRL(-dif)} para o teto.`);
+  if (abatido) nota.push(`Fixas e parcelas sozinhas dariam ${BRL(bruto)} — o resto do mês abateu ${BRL(abatido)}.`);
   cx.innerHTML = `
     <div class="teto-top">
-      <span class="teto-rot">Teto do mês · ${BRL(t)}</span>
+      <span class="teto-rot">Teto da transferência · ${BRL(t)}</span>
       <span class="teto-pct">${pct.toFixed(0)}%</span>
     </div>
     <div class="teto-barra">
-      <div class="seg fx" style="width:${w(g.fixa)}"></div>
-      <div class="seg pc" style="width:${w(g.parc)}"></div>
-      <div class="seg vr" style="width:${w(g.var)}"></div>
+      <div class="seg pc" style="width:${w(comp)}"></div>
+      <div class="seg vr" style="width:${w(resto)}"></div>
       <div class="teto-marca" style="left:${w(t)}"></div>
     </div>
     <div class="teto-leg">
-      ${g.fixa ? `<span><i style="background:#A7B2AC"></i>fixas <b>${BRL(g.fixa)}</b></span>` : ''}
-      ${g.parc ? `<span><i style="background:#6E8C99"></i>parcelas <b>${BRL(g.parc)}</b></span>` : ''}
-      ${g.var ? `<span><i style="background:var(--p0)"></i>variáveis <b>${BRL(g.var)}</b></span>` : ''}
+      ${comp ? `<span><i style="background:#6E8C99"></i>já comprometido <b>${BRL(comp)}</b></span>` : ''}
+      ${resto > 0 ? `<span><i style="background:var(--p0)"></i>resto do mês <b>${BRL(resto)}</b></span>` : ''}
     </div>
-    <div class="teto-dif ${dif > 0 ? 'ac' : 'ok'}">
-      ${dif > 0
-        ? `${BRL(dif)} acima do teto. ${BRL(g.fixa + g.parc)} já estavam comprometidos antes de qualquer compra.`
-        : `Faltam ${BRL(-dif)} para o teto.`}
-    </div>`;
+    <div class="teto-dif ${dif > 0 ? 'ac' : 'ok'}">${nota.join(' ')}</div>`;
 }
 
 /* ── avisos ── */
@@ -860,22 +902,23 @@ function toast(html) {
 
 /** Dispara no máximo um aviso por evento, nomeando o marco mais alto alcançado.
  *  Sem isso, a abertura do ciclo cruzaria os quatro marcos de uma vez. */
-function checarMarcos(total, L) {
+function checarMarcos(ac, L) {
   const t = tetoCent(); if (!t) return;
+  const v = ac ? ac.valorCent : 0; if (!v) return;
   const k = ciclo(COMP);
-  const pct = total / t * 100;
+  const pct = v / t * 100;
   const novos = MARCOS.filter(m => pct >= m && !k.marcos.includes(m));
   if (!novos.length) return;
   novos.forEach(m => k.marcos.push(m)); k.atualizadoEm = agora();
   salvar();
   if (!dados.casa.alertas) return;
 
-  const g = composicao(L);
-  const comp = g.fixa + g.parc;
+  const comp = Math.min(comprometidoCent(L, ac), v);
   const titulo = `${tituloComp(COMP)} · ${pct.toFixed(0)}% do teto`;
-  const corpo = novos.length > 1
-    ? `${BRL(total)} de ${BRL(t)}. ${BRL(comp)} são fixas e parcelas já contratadas.`
-    : `${BRL(total)} de ${BRL(t)}.${pct >= 100 ? ` ${BRL(total - t)} acima do teto.` : ''}`;
+  const base = `${ac.de} transferiria ${BRL(v)} de um teto de ${BRL(t)}.`;
+  const corpo = pct >= 100
+    ? `${base} ${BRL(v - t)} acima.${comp ? ` ${BRL(comp)} já estavam comprometidos.` : ''}`
+    : base;
   if (!notificar(titulo, corpo)) toast(`<b>${titulo}</b><br>${corpo}`);
 }
 
@@ -1032,6 +1075,7 @@ function gravar() {
   if (editando) {
     editando.valorCent = v; editando.pagador = rasc.pagador; editando.tipoRateio = rasc.rateio;
     delete editando.estimado; delete editando.base;
+    editando.atualizadoPor = dados.prefs.eu;
     editando.atualizadoEm = agora();
   } else if (rasc.parcelas > 1) {
     const tot = totalDaCompra();
@@ -1321,6 +1365,7 @@ const L2DB = l => ({
   valor_total_compra_cent: l.valorTotalCompraCent == null ? null : l.valorTotalCompraCent,
   recorrencia_id: l.recorrenciaId || null, estimado: !!l.estimado, base: l.base || null,
   obs: l.obs || null, criado_por: l.criadoPor || null,
+  atualizado_por: l.atualizadoPor || null,
   criado_em: l.criadoEm || agora(), atualizado_em: l.atualizadoEm || agora(),
   excluido_em: l.excluidoEm || null
 });
@@ -1330,8 +1375,8 @@ const DB2L = r => {
     natureza: r.natureza, projeto: r.projeto, escopo: r.escopo, tipoRateio: r.tipo_rateio,
     dataDespesa: r.data_despesa, parcela: r.parcela, parcelaGrupoId: r.parcela_grupo_id,
     valorTotalCompraCent: r.valor_total_compra_cent, recorrenciaId: r.recorrencia_id,
-    obs: r.obs, criadoPor: r.criado_por, criadoEm: r.criado_em,
-    atualizadoEm: r.atualizado_em, excluidoEm: r.excluido_em };
+    obs: r.obs, criadoPor: r.criado_por, atualizadoPor: r.atualizado_por,
+    criadoEm: r.criado_em, atualizadoEm: r.atualizado_em, excluidoEm: r.excluido_em };
   if (r.estimado) { l.estimado = true; l.base = r.base; }
   Object.keys(l).forEach(k => { if (l[k] === null) delete l[k]; });
   return l;
