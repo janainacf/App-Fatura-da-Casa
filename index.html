@@ -597,9 +597,22 @@ let dados = (() => {
    tinha dados, porque só esses passam pela migração. */
 let sb = null, sessao = null, casaId = null, canal = null, sincronizando = false;
 
+/* Quando o que está sendo gravado VEIO da nuvem, gravar não pode disparar um
+   novo envio: devolver ao banco o que ele acabou de mandar fecha um laço.
+   Esta trava existe para que nenhum eco futuro vire tempestade, mesmo que
+   outra regra de mesclagem escorregue. */
+let aplicandoRemoto = false;
+
 const salvar = () => {
   armazem.gravar(CHAVE, JSON.stringify(dados));
-  if (typeof enfileirar === 'function') enfileirar();
+  if (!aplicandoRemoto && typeof enfileirar === 'function') enfileirar();
+};
+
+/* Grava sem reenviar — para uso em tudo que chega da nuvem. */
+const salvarDaNuvem = () => {
+  const antes = aplicandoRemoto;
+  aplicandoRemoto = true;
+  try { salvar(); } finally { aplicandoRemoto = antes; }
 };
 const competenciaAtual = () => competenciaDe(hojeISO(), dados.casa.diaCorte || CORTE_PADRAO);
 
@@ -648,6 +661,25 @@ if (dados.casa.tetoBase !== 'acerto') {
   dados.casa.tetoBase = 'acerto';
   salvar();
 }
+
+/* Migração: carimbar o que nasceu sem marca de tempo.
+   Os ciclos e a transferência de crédito vieram dos dados de partida sem
+   atualizadoEm. Sem isso, cada envio carimbava a hora na hora de subir, o
+   banco avisava a mudança, o aparelho via marca mais nova que a sua (que não
+   existia), aceitava, gravava — e disparava outro envio. Laço a cada 1,2s.
+   Carimbar uma vez, aqui, torna o valor estável. */
+(() => {
+  const t = agora(); let mexeu = false;
+  const selar = o => {
+    if (!o) return;
+    if (!o.criadoEm)    { o.criadoEm = t;    mexeu = true; }
+    if (!o.atualizadoEm) { o.atualizadoEm = o.criadoEm || t; mexeu = true; }
+  };
+  (dados.lancamentos || []).forEach(selar);
+  (dados.transferencias || []).forEach(selar);
+  Object.values(dados.ciclos || {}).forEach(selar);
+  if (mexeu) salvar();
+})();
 if (MEMBROS.length) semear(COMP);
 
 /* deslocamento em meses sobre uma competência */
@@ -1311,7 +1343,7 @@ $('btn-inst').onclick = async () => { if (!promptInst) return; promptInst.prompt
 /* Marca de versão. Existe para responder, de dentro do aparelho, "qual código
    está rodando aqui?" — pergunta que já custou uma tarde de diagnóstico às
    cegas. Aparece no fim dos ajustes. */
-const VERSAO = '2026-10-17.5';
+const VERSAO = '2026-10-17.6';
 
 if ('serviceWorker' in navigator && location.protocol.startsWith('http'))
   addEventListener('load', () => navigator.serviceWorker.register('./sw.js')
@@ -1452,7 +1484,10 @@ function mesclarTransferencia(r) {
 }
 function mesclarCiclo(r) {
   const k = dados.ciclos[r.competencia];
-  if (k && (k.atualizadoEm || '') > (r.atualizado_em || '')) return false;
+  /* >= e não >: com > , marcas IGUAIS contavam como novidade, e o eco do
+     próprio envio voltava como alteração — segundo laço, independente do
+     carimbo ausente. Só aplica o que é estritamente mais recente. */
+  if (k && (k.atualizadoEm || '') >= (r.atualizado_em || '')) return false;
   dados.ciclos[r.competencia] = { status: r.status, aprovacoes: r.aprovacoes || {},
     marcos: r.marcos || [], previaEm: r.previa_em, fechadoEm: r.fechado_em,
     pagoEm: r.pago_em, atualizadoEm: r.atualizado_em };
@@ -1534,7 +1569,7 @@ async function sincronizar(completo) {
   try {
     const baixou = await puxar();
     if (completo) await empurrar();
-    salvar();
+    salvarDaNuvem();   /* acabou de enviar; gravar não deve reenviar */
     sincEstado('on', 'Sincronizado · ' + new Date().toLocaleTimeString('pt-BR').slice(0, 5), 'Sincronizar');
     if (baixou) { pintar(); pintarCfg(); }
   } catch (e) {
@@ -1559,11 +1594,11 @@ function ligarTempoReal() {
   if (canal) c.removeChannel(canal);
   canal = c.channel('casa-' + casaId)
     .on('postgres_changes', { event: '*', schema: 'public', table: 'lancamento', filter: 'casa_id=eq.' + casaId },
-      p => { if (p.new && mesclarLancamento(p.new)) { salvar(); pintar(); } })
+      p => { if (p.new && mesclarLancamento(p.new)) { salvarDaNuvem(); pintar(); } })
     .on('postgres_changes', { event: '*', schema: 'public', table: 'transferencia', filter: 'casa_id=eq.' + casaId },
-      p => { if (p.new && mesclarTransferencia(p.new)) { salvar(); pintar(); } })
+      p => { if (p.new && mesclarTransferencia(p.new)) { salvarDaNuvem(); pintar(); } })
     .on('postgres_changes', { event: '*', schema: 'public', table: 'ciclo', filter: 'casa_id=eq.' + casaId },
-      p => { if (p.new && mesclarCiclo(p.new)) { salvar(); pintar(); } })
+      p => { if (p.new && mesclarCiclo(p.new)) { salvarDaNuvem(); pintar(); } })
     .subscribe();
 }
 
