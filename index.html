@@ -680,6 +680,25 @@ if (dados.casa.tetoBase !== 'acerto') {
   Object.values(dados.ciclos || {}).forEach(selar);
   if (mexeu) salvar();
 })();
+
+/* Quarentena: registro sem os campos que o banco exige sai da base ativa —
+   não entra no cálculo, não sobe, não trava a sincronização. Mas não é
+   destruído: fica em dados.quarentena, e vai junto em "Copiar meus dados".
+   A regra do app é que nada se apaga sem substituto; esta não é exceção. */
+(() => {
+  const q = dados.quarentena = dados.quarentena || { lancamentos: [], transferencias: [], ciclos: {} };
+  let n = 0;
+  const separar = (arr, ok, destino) => {
+    for (let i = arr.length - 1; i >= 0; i--)
+      if (!ok(arr[i])) { destino.unshift(arr[i]); arr.splice(i, 1); n++; }
+  };
+  separar(dados.lancamentos || [], lancOk, q.lancamentos);
+  separar(dados.transferencias || [], transfOk, q.transferencias);
+  Object.keys(dados.ciclos || {}).forEach(k => {
+    if (!cicloOk(k)) { q.ciclos[k] = dados.ciclos[k]; delete dados.ciclos[k]; n++; }
+  });
+  if (n) salvar();
+})();
 if (MEMBROS.length) semear(COMP);
 
 /* deslocamento em meses sobre uma competência */
@@ -1343,7 +1362,7 @@ $('btn-inst').onclick = async () => { if (!promptInst) return; promptInst.prompt
 /* Marca de versão. Existe para responder, de dentro do aparelho, "qual código
    está rodando aqui?" — pergunta que já custou uma tarde de diagnóstico às
    cegas. Aparece no fim dos ajustes. */
-const VERSAO = '2026-10-17.7';
+const VERSAO = '2026-10-17.8';
 
 if ('serviceWorker' in navigator && location.protocol.startsWith('http'))
   addEventListener('load', () => navigator.serviceWorker.register('./sw.js')
@@ -1462,8 +1481,19 @@ const C2DB = (comp, k) => ({
 /* ── mesclagem: a linha mais recente ganha, nunca se apaga sem substituto ── */
 const maisNovo = (a, b) => (a || '') >= (b || '') ? a : b;
 
+/* Validadores: os campos que o banco exige como "not null". Um registro sem
+   eles não é dado, é resto — nunca entra na base local nem sobe. */
+/* Declarações de função, não const: a quarentena da abertura (lá em cima)
+   chama estes validadores ANTES desta linha. Com const, cairia na mesma
+   zona morta que derrubou o app quando casaId era lido cedo demais. */
+function lancOk(l)     { return !!(l && l.id && l.competencia && l.descricao && l.pagador); }
+function transfOk(t)   { return !!(t && t.id && t.competencia && t.de && t.para && Number.isFinite(t.valorCent)); }
+function cicloOk(comp) { return typeof comp === 'string' && /^\d{4}-\d{2}$/.test(comp); }
+
 function mesclarLancamento(r) {
+  if (!r || !r.id) return false;
   const novo = DB2L(r);
+  if (!lancOk(novo)) return false;
   const i = dados.lancamentos.findIndex(l => l.id === novo.id);
   if (i < 0) { dados.lancamentos.push(novo); return true; }
   const atual = dados.lancamentos[i];
@@ -1473,7 +1503,9 @@ function mesclarLancamento(r) {
   return false;
 }
 function mesclarTransferencia(r) {
+  if (!r || !r.id) return false;
   const novo = DB2T(r);
+  if (!transfOk(novo)) return false;
   dados.transferencias = dados.transferencias || [];
   const i = dados.transferencias.findIndex(t => t.id === novo.id);
   if (i < 0) { dados.transferencias.push(novo); return true; }
@@ -1483,6 +1515,7 @@ function mesclarTransferencia(r) {
   return false;
 }
 function mesclarCiclo(r) {
+  if (!r || !cicloOk(r.competencia)) return false;
   const k = dados.ciclos[r.competencia];
   /* >= e não >: com > , marcas IGUAIS contavam como novidade, e o eco do
      próprio envio voltava como alteração — segundo laço, independente do
@@ -1539,16 +1572,17 @@ async function empurrar() {
   let n = 0;
   const lotes = (arr, t) => { const o = []; for (let i = 0; i < arr.length; i += t) o.push(arr.slice(i, i + t)); return o; };
 
-  for (const lote of lotes(dados.lancamentos.map(L2DB), 200)) {
+  /* Última barreira: mesmo que algo incompleto escape da quarentena, não sobe. */
+  for (const lote of lotes(dados.lancamentos.filter(lancOk).map(L2DB), 200)) {
     const { error } = await c.from('lancamento').upsert(lote, { onConflict: 'id' });
     if (error) throw error; n += lote.length;
   }
-  const tr = (dados.transferencias || []).map(T2DB);
+  const tr = (dados.transferencias || []).filter(transfOk).map(T2DB);
   if (tr.length) {
     const { error } = await c.from('transferencia').upsert(tr, { onConflict: 'id' });
     if (error) throw error; n += tr.length;
   }
-  const ci = Object.entries(dados.ciclos || {}).map(([comp, k]) => C2DB(comp, k));
+  const ci = Object.entries(dados.ciclos || {}).filter(([comp]) => cicloOk(comp)).map(([comp, k]) => C2DB(comp, k));
   if (ci.length) {
     const { error } = await c.from('ciclo').upsert(ci, { onConflict: 'casa_id,competencia' });
     if (error) throw error; n += ci.length;
@@ -1592,13 +1626,23 @@ function enfileirar() {
 function ligarTempoReal() {
   const c = cliente(); if (!c || !casaId) return;
   if (canal) c.removeChannel(canal);
+  /* Só inserção e alteração. Num aviso de EXCLUSÃO o Supabase manda `new`
+     como objeto vazio {} — que em JavaScript ainda conta como verdadeiro.
+     O app aceitava, convertia num registro de campos vazios e guardava; a
+     subida seguinte esbarrava no "not null" do banco. E o app nunca apaga
+     de verdade (exclusão é marca em excluido_em), então não há exclusão
+     legítima a aplicar. */
+  const util = (p, fn) => {
+    if (p.eventType === 'DELETE' || !p.new || !Object.keys(p.new).length) return;
+    if (fn(p.new)) { salvarDaNuvem(); pintar(); }
+  };
   canal = c.channel('casa-' + casaId)
     .on('postgres_changes', { event: '*', schema: 'public', table: 'lancamento', filter: 'casa_id=eq.' + casaId },
-      p => { if (p.new && mesclarLancamento(p.new)) { salvarDaNuvem(); pintar(); } })
+      p => util(p, mesclarLancamento))
     .on('postgres_changes', { event: '*', schema: 'public', table: 'transferencia', filter: 'casa_id=eq.' + casaId },
-      p => { if (p.new && mesclarTransferencia(p.new)) { salvarDaNuvem(); pintar(); } })
+      p => util(p, mesclarTransferencia))
     .on('postgres_changes', { event: '*', schema: 'public', table: 'ciclo', filter: 'casa_id=eq.' + casaId },
-      p => { if (p.new && mesclarCiclo(p.new)) { salvarDaNuvem(); pintar(); } })
+      p => util(p, mesclarCiclo))
     .subscribe();
 }
 
