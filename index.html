@@ -1343,7 +1343,7 @@ $('btn-inst').onclick = async () => { if (!promptInst) return; promptInst.prompt
 /* Marca de versão. Existe para responder, de dentro do aparelho, "qual código
    está rodando aqui?" — pergunta que já custou uma tarde de diagnóstico às
    cegas. Aparece no fim dos ajustes. */
-const VERSAO = '2026-10-17.6';
+const VERSAO = '2026-10-17.7';
 
 if ('serviceWorker' in navigator && location.protocol.startsWith('http'))
   addEventListener('load', () => navigator.serviceWorker.register('./sw.js')
@@ -1760,10 +1760,21 @@ async function depoisDoLogin() {
   await sincronizar(true);
   ligarTempoReal();
   if (configurado()) { pintarEu(); pintarCfg(); pintar(); }
-iniciarNuvem();
 }
 
+/* iniciarNuvem chama depoisDoLogin. Uma chamada de volta aqui dentro fecharia
+   um círculo: conectar → sincronizar → conectar, sem fim. Havia exatamente
+   isso nesta linha, e era o que fazia o indicador piscar entre "Conectando…"
+   e "Sincronizando…". A trava abaixo impede que volte por outro caminho. */
+let conectando = false;
+
 async function iniciarNuvem() {
+  if (conectando) return;
+  conectando = true;
+  try { await conectar(); } finally { conectando = false; }
+}
+
+async function conectar() {
   const c = cliente();
   if (!c) { sincEstado('', 'Só neste aparelho', 'Conectar'); return; }
   const { data } = await c.auth.getSession();
