@@ -1636,21 +1636,43 @@ async function criarCasa() {
   const c = cliente(); if (!c) return;
   $('c-criar').disabled = true;
   try {
-    const { data: casa, error } = await c.from('casa').insert({
+    /* Três passos, e a ordem é obrigatória. A política de leitura da casa é
+       "só enxerga quem já é membro". Pedir a linha de volta no mesmo INSERT
+       — o .select() que estava aqui — faz o Postgres avaliar o RETURNING
+       contra essa política, quando o vínculo de membro ainda não existe.
+       Ele recusa, e com a mesma frase de "violates row-level security
+       policy" que um problema de autenticação daria. */
+
+    /* 1. cria a casa sem pedir retorno */
+    const { error } = await c.from('casa').insert({
       id: dados.casa.id, nome: dados.casa.nome || 'Casa',
       dia_corte: dados.casa.diaCorte || 20, teto_cent: dados.casa.tetoCent || 300000,
       alertas: dados.casa.alertas !== false,
       recorrencias: dados.recorrencias || [], parcelamentos: dados.parcelamentos || [],
       categorias: dados.categorias || [], parcela_base: dados.parcelaBase || null
-    }).select().single();
-    if (error) throw error;
-    casaId = casa.id;
-    dados.casa.codigoConvite = casa.codigo_convite;
-    const meuNome = dados.prefs.eu || MEMBROS[0];
-    const { error: e2 } = await c.from('membro').insert({
-      casa_id: casaId, user_id: sessao.user.id, nome_exibicao: meuNome, ordem: MEMBROS.indexOf(meuNome)
     });
-    if (e2) throw e2;
+    /* 23505 = chave duplicada. Significa que uma tentativa anterior já criou
+       a casa e parou no meio; seguir em frente é o certo. */
+    if (error && error.code !== '23505') throw error;
+    casaId = dados.casa.id;
+
+    /* 2. virar membro — é isto que destrava a leitura */
+    const meuNome = dados.prefs.eu || MEMBROS[0];
+    /* Inserção simples, não upsert: upsert vira ON CONFLICT DO UPDATE, e o
+       Postgres exige política de UPDATE para isso — `membro` só tem política
+       de inserção. Duplicata aqui significa que o vínculo já existe, que é
+       exatamente o que se queria. */
+    const { error: e2 } = await c.from('membro').insert({
+      casa_id: casaId, user_id: sessao.user.id, nome_exibicao: meuNome,
+      ordem: Math.max(MEMBROS.indexOf(meuNome), 0)
+    });
+    if (e2 && e2.code !== '23505') throw e2;
+
+    /* 3. agora a casa é visível e o código de convite pode ser lido */
+    const { data: casa, error: e3 } = await c.from('casa')
+      .select('codigo_convite').eq('id', casaId).single();
+    if (e3) throw e3;
+    dados.casa.codigoConvite = casa.codigo_convite;
     salvar();
     nuvemFecha();
     await sincronizar(true);
