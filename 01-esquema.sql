@@ -10,7 +10,7 @@ create table if not exists public.casa (
   id              uuid primary key default gen_random_uuid(),
   nome            text        not null default 'Casa',
   dia_corte       int         not null default 20 check (dia_corte between 1 and 28),
-  teto_cent       bigint      not null default 350000,
+  teto_cent       bigint      not null default 300000,
   alertas         boolean     not null default true,
   codigo_convite  text        not null unique default upper(substr(md5(random()::text), 1, 6)),
   recorrencias    jsonb       not null default '[]'::jsonb,
@@ -176,10 +176,23 @@ begin
   end if;
 end $$;
 
-alter publication supabase_realtime add table public.lancamento;
-alter publication supabase_realtime add table public.transferencia;
-alter publication supabase_realtime add table public.ciclo;
-alter publication supabase_realtime add table public.casa;
+-- Incluir uma tabela que já está na publicação é ERRO no Postgres, não
+-- silêncio. Sem este laço, a segunda execução do arquivo parava aqui com
+-- 42710 e a transação inteira era desfeita.
+do $$
+declare t text;
+begin
+  foreach t in array array['lancamento','transferencia','ciclo','casa'] loop
+    if not exists (
+      select 1 from pg_publication_tables
+      where pubname = 'supabase_realtime'
+        and schemaname = 'public'
+        and tablename = t
+    ) then
+      execute format('alter publication supabase_realtime add table public.%I', t);
+    end if;
+  end loop;
+end $$;
 
 -- Realtime precisa da linha inteira para avisar o outro aparelho sobre edições.
 alter table public.lancamento    replica identity full;

@@ -146,6 +146,7 @@ h2 em{font-style:normal;color:var(--aviso);font-weight:600;font-family:'IBM Plex
   flex-wrap:wrap;line-height:1.35;margin-top:1px}
 .info .aut{font-size:11.5px;color:var(--fraca);opacity:.72;line-height:1.3;margin-top:2px;
   white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.dl-aut{display:block;font-style:normal;font-size:11.5px;color:var(--fraca);opacity:.72;margin-top:1px}
 .dot{width:5px;height:5px;border-radius:99px;flex:0 0 auto}
 .dot.p0{background:var(--p0)} .dot.p1{background:var(--p1)}
 .selo-est{font-size:11px;font-weight:600;color:var(--aviso);letter-spacing:.04em;text-transform:uppercase}
@@ -257,7 +258,11 @@ h2 em{font-style:normal;color:var(--aviso);font-weight:600;font-family:'IBM Plex
 .doc-sub{font-size:13px;color:var(--fraca);margin-top:2px}
 .dl{display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap;padding:5px 0;
   font-size:14px;border-bottom:1px solid #F1EFEB}
-.dl span:first-child{min-width:0}
+/* flex-basis 0: com flex-wrap, o navegador decide a quebra pelo tamanho
+   natural do conteúdo ANTES de encolher. Descrição longa jogava o valor
+   para a linha de baixo. Partindo de 0, cabem os dois e o texto quebra
+   dentro da própria coluna, com o valor firme à direita. */
+.dl span:first-child{min-width:0;flex:1 1 0}
 .dl:last-child{border-bottom:none}
 .dl span:last-child{font-family:'IBM Plex Mono',monospace;flex:0 0 auto;margin-left:auto;white-space:nowrap}
 .dl.forte{font-weight:600;border-top:1.5px solid var(--tinta);border-bottom:none;margin-top:4px;padding-top:8px}
@@ -565,7 +570,7 @@ const CATEGORIAS_PADRAO = [['🛒','Mercado'],['💡','Contas'],['🏠','Moradia
 function vazio() {
   return { esquema: ESQUEMA,
            casa: { id: novoId(), nome: 'Casa', diaCorte: CORTE_PADRAO, membros: [],
-                   tetoCent: 350000, alertas: true },
+                   tetoCent: 300000, alertas: true },
            recorrencias: [], parcelamentos: [], parcelaBase: null, categorias: [],
            ciclos: {},
            lancamentos: [], transferencias: [], ciclosSemeados: [],
@@ -629,7 +634,7 @@ if (MEMBROS.length && !dados.prefs.eu) { dados.prefs.eu = MEMBROS[0]; salvar(); 
 
 /* Migração: dados criados antes do teto não têm esses campos. Sem isto o
    medidor não apareceria para quem já usava o app. */
-if (dados.casa.tetoCent === undefined) { dados.casa.tetoCent = 350000; salvar(); }
+if (dados.casa.tetoCent === undefined) { dados.casa.tetoCent = 300000; salvar(); }
 if (dados.casa.alertas === undefined)  { dados.casa.alertas = true;   salvar(); }
 
 /* O teto passou a medir a TRANSFERÊNCIA, não o total da fatura. Os marcos já
@@ -1136,7 +1141,10 @@ function resumoTexto(c) {
   const tr = (dados.transferencias||[]).filter(x => x.competencia === c && x.finalidade === 'adiantamento' && x.considerar !== false);
   if (tr.length) { t += `\nCRÉDITOS\n`; tr.forEach(x => t += `${x.de} → ${x.para}: ${BRL(x.valorCent)}${x.obs ? ' — ' + x.obs : ''}\n`); }
   t += `\n>>> ${ac ? `${ac.de} transfere a ${ac.para} ${BRL(ac.valorCent)}` : 'Nada a acertar'}\n\nLANÇAMENTOS\n`;
-  L.forEach(l => t += `${l.icone} ${l.descricao}${l.dataDespesa?' '+ddmm(l.dataDespesa):''}${l.parcela?' ('+l.parcela+(l.valorTotalCompraCent?' de '+BRL(l.valorTotalCompraCent):'')+')':''} — ${BRL(l.valorCent)} — ${l.pagador}${l.estimado?' [estimado]':''}\n`);
+  L.forEach(l => {
+    const aut = autoria(l);
+    t += `${l.icone} ${l.descricao}${l.dataDespesa?' '+ddmm(l.dataDespesa):''}${l.parcela?' ('+l.parcela+(l.valorTotalCompraCent?' de '+BRL(l.valorTotalCompraCent):'')+')':''} — ${BRL(l.valorCent)} — ${l.pagador}${l.estimado?' [estimado]':''}${aut?' ('+aut+')':''}\n`;
+  });
   return t;
 }
 
@@ -1191,7 +1199,10 @@ function pintarDoc(c) {
     ${pago.obs?`<div class="dl"><span>Observação</span><span>${pago.obs}</span></div>`:''}`;
 
   h += `<h3>Lançamentos</h3>`;
-  L.forEach(l => h += `<div class="dl"><span>${l.icone} ${l.descricao}${l.dataDespesa?' · '+ddmm(l.dataDespesa):''}${l.parcela?' · '+l.parcela+(l.valorTotalCompraCent?' de '+BRL(l.valorTotalCompraCent):''):''} — ${l.pagador}${l.estimado?' · estimado':''}</span><span>${BRL(l.valorCent)}</span></div>`);
+  L.forEach(l => {
+    const aut = autoria(l);
+    h += `<div class="dl"><span>${l.icone} ${l.descricao}${l.dataDespesa?' · '+ddmm(l.dataDespesa):''}${l.parcela?' · '+l.parcela+(l.valorTotalCompraCent?' de '+BRL(l.valorTotalCompraCent):''):''} — ${l.pagador}${l.estimado?' · estimado':''}${aut?`<i class="dl-aut">${aut}</i>`:''}</span><span>${BRL(l.valorCent)}</span></div>`;
+  });
 
   $('doc-corpo').innerHTML = h;
   $('doc-titulo').textContent = `${tituloComp(c)} · ${ROT[k.status]}`;
@@ -1627,7 +1638,7 @@ async function criarCasa() {
   try {
     const { data: casa, error } = await c.from('casa').insert({
       id: dados.casa.id, nome: dados.casa.nome || 'Casa',
-      dia_corte: dados.casa.diaCorte || 20, teto_cent: dados.casa.tetoCent || 350000,
+      dia_corte: dados.casa.diaCorte || 20, teto_cent: dados.casa.tetoCent || 300000,
       alertas: dados.casa.alertas !== false,
       recorrencias: dados.recorrencias || [], parcelamentos: dados.parcelamentos || [],
       categorias: dados.categorias || [], parcela_base: dados.parcelaBase || null
