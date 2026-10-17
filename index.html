@@ -616,25 +616,55 @@ const salvarDaNuvem = () => {
 };
 const competenciaAtual = () => competenciaDe(hojeISO(), dados.casa.diaCorte || CORTE_PADRAO);
 
+/* Semeadura das fixas e parcelas de um ciclo.
+
+   Com dois aparelhos, cada um semeia sozinho — na abertura de um ciclo novo,
+   ou ao navegar para um mês futuro. Com identificador aleatório, cada aparelho
+   fabricava a sua cópia, e a nuvem guardava as duas: condomínio, diarista,
+   luz e parcelas em dobro, e a transferência inflada junto.
+
+   Por isso o identificador agora é DETERMINÍSTICO — a origem mais o mês:
+   "rec-condominio.2026-11". Os dois aparelhos geram a mesma linha, e o banco
+   as funde numa só.
+
+   E a marca de tempo também é fixa, propositalmente antiga. Qualquer ajuste
+   feito por uma pessoa — confirmar a conta de luz, apagar uma assinatura
+   cancelada — tem marca mais nova e sempre vence a semente. Sem isso, um
+   aparelho que semeasse depois poderia ressuscitar o que o outro apagou. */
+const SEMENTE_EM = '2000-01-01T00:00:00.000Z';
+
 function semear(comp) {
   if (dados.ciclosSemeados.includes(comp)) return;
   if (!dados.casa.membros.length) return;
-  (dados.recorrencias || []).forEach(r => dados.lancamentos.push({
-    id: novoId(), descricao: r.descricao, valorCent: r.valorCent, pagador: r.pagador,
-    icone: r.icone, natureza: 'Fixa', estimado: true, base: r.base, recorrenciaId: r.id,
-    dataDespesa: null, competencia: comp, escopo: 'fatura', tipoRateio: 'igual',
-    criadoPor: 'sistema', criadoEm: agora(), atualizadoEm: agora(), excluidoEm: null
-  }));
+  /* Duas defesas contra duplicata. Pelo identificador — cobre os dois
+     aparelhos semeando o mesmo mês. E pelo significado: se já existe, neste
+     mês, um lançamento daquela recorrência ou daquele parcelamento, não se
+     planta outro. Esta segunda cobre os ciclos semeados antes desta versão,
+     com identificadores aleatórios que nunca coincidiriam com os novos. */
+  const existe = new Set(dados.lancamentos.map(l => l.id));
+  const doMes = dados.lancamentos.filter(l => l.competencia === comp);
+  const temRec  = new Set(doMes.map(l => l.recorrenciaId).filter(Boolean));
+  const temParc = new Set(doMes.map(l => l.parcelaGrupoId).filter(Boolean));
+  const plantar = l => {
+    if (existe.has(l.id)) return;
+    if (l.recorrenciaId && temRec.has(l.recorrenciaId)) return;
+    if (l.parcelaGrupoId && temParc.has(l.parcelaGrupoId)) return;
+    dados.lancamentos.push(l); existe.add(l.id);
+  };
+  const base = { dataDespesa: null, competencia: comp, escopo: 'fatura', tipoRateio: 'igual',
+    criadoPor: 'sistema', criadoEm: SEMENTE_EM, atualizadoEm: SEMENTE_EM, excluidoEm: null };
+
+  (dados.recorrencias || []).forEach(r => plantar({ ...base,
+    id: `${r.id}.${comp}`, descricao: r.descricao, valorCent: r.valorCent, pagador: r.pagador,
+    icone: r.icone, natureza: 'Fixa', estimado: true, base: r.base, recorrenciaId: r.id }));
+
   const off = dados.parcelaBase ? mesesEntre(dados.parcelaBase, comp) : 0;
   (dados.parcelamentos || []).forEach(p => {
     const num = p.ini + off;
     if (num < 1 || num > p.total) return;
-    dados.lancamentos.push({
-      id: novoId(), descricao: p.descricao, valorCent: p.valorCent, pagador: p.pagador,
-      icone: p.icone, natureza: 'Parcelada', parcela: `${num}/${p.total}`, parcelaGrupoId: p.id,
-      dataDespesa: null, competencia: comp, escopo: 'fatura', tipoRateio: 'igual',
-      criadoPor: 'sistema', criadoEm: agora(), atualizadoEm: agora(), excluidoEm: null
-    });
+    plantar({ ...base,
+      id: `${p.id}.${comp}`, descricao: p.descricao, valorCent: p.valorCent, pagador: p.pagador,
+      icone: p.icone, natureza: 'Parcelada', parcela: `${num}/${p.total}`, parcelaGrupoId: p.id });
   });
   dados.ciclosSemeados.push(comp);
   salvar();
@@ -642,6 +672,16 @@ function semear(comp) {
 
 const MEMBROS = dados.casa.membros;
 const CATEGORIAS = (dados.categorias && dados.categorias.length) ? dados.categorias : CATEGORIAS_PADRAO;
+
+/* Moradores, dia de corte e categorias são lidos UMA vez, aqui. Num aparelho
+   que entra numa casa já existente, eles chegam da nuvem depois — e estas
+   constantes continuariam vazias. Em vez de remendar cada uma, o app compara
+   a configuração de agora com a da abertura e, se mudou, recarrega uma vez.
+   Depois da recarga as duas coincidem, então não há risco de laço. */
+const ASSINATURA_ABERTURA = JSON.stringify([dados.casa.membros, dados.casa.diaCorte, dados.categorias]);
+function precisaRecarregar() {
+  return JSON.stringify([dados.casa.membros, dados.casa.diaCorte, dados.categorias]) !== ASSINATURA_ABERTURA;
+}
 const CORTE = dados.casa.diaCorte || CORTE_PADRAO;
 const COMP_HOJE = competenciaAtual();
 let COMP = COMP_HOJE;                       // ciclo em exibição
@@ -1362,7 +1402,7 @@ $('btn-inst').onclick = async () => { if (!promptInst) return; promptInst.prompt
 /* Marca de versão. Existe para responder, de dentro do aparelho, "qual código
    está rodando aqui?" — pergunta que já custou uma tarde de diagnóstico às
    cegas. Aparece no fim dos ajustes. */
-const VERSAO = '2026-10-17.8';
+const VERSAO = '2026-10-17.9';
 
 if ('serviceWorker' in navigator && location.protocol.startsWith('http'))
   addEventListener('load', () => navigator.serviceWorker.register('./sw.js')
@@ -1562,8 +1602,13 @@ async function puxar() {
     if (cas.data.parcelamentos?.length) dados.parcelamentos = cas.data.parcelamentos;
     if (cas.data.categorias?.length)    dados.categorias    = cas.data.categorias;
     if (cas.data.parcela_base)          dados.parcelaBase   = cas.data.parcela_base;
+    /* Moradores: altera o array existente em vez de trocá-lo, para que a
+       constante MEMBROS — que aponta para ele — enxergue a mudança. */
+    const m = cas.data.membros;
+    if (Array.isArray(m) && m.length && JSON.stringify(m) !== JSON.stringify(dados.casa.membros))
+      dados.casa.membros.splice(0, dados.casa.membros.length, ...m);
   }
-  if (n) salvar();
+  if (n) salvarDaNuvem();
   return n;
 }
 
@@ -1591,7 +1636,8 @@ async function empurrar() {
     nome: dados.casa.nome, dia_corte: dados.casa.diaCorte,
     teto_cent: dados.casa.tetoCent, alertas: dados.casa.alertas,
     recorrencias: dados.recorrencias || [], parcelamentos: dados.parcelamentos || [],
-    categorias: dados.categorias || [], parcela_base: dados.parcelaBase || null
+    categorias: dados.categorias || [], parcela_base: dados.parcelaBase || null,
+    membros: dados.casa.membros || []
   }).eq('id', casaId);
   return n;
 }
@@ -1744,7 +1790,8 @@ async function criarCasa() {
       dia_corte: dados.casa.diaCorte || 20, teto_cent: dados.casa.tetoCent || 300000,
       alertas: dados.casa.alertas !== false,
       recorrencias: dados.recorrencias || [], parcelamentos: dados.parcelamentos || [],
-      categorias: dados.categorias || [], parcela_base: dados.parcelaBase || null
+      categorias: dados.categorias || [], parcela_base: dados.parcelaBase || null,
+      membros: dados.casa.membros || []
     });
     /* 23505 = chave duplicada. Significa que uma tentativa anterior já criou
        a casa e parou no meio; seguir em frente é o certo. */
@@ -1787,11 +1834,21 @@ async function entrarNaCasa() {
   const { data, error } = await c.rpc('entrar_na_casa', { p_codigo: cod, p_nome: nome });
   if (error) { telaCasa({ t: error.message }); return; }
   casaId = data;
-  dados.prefs.eu = nome; salvar();
+  dados.casa.id = casaId;
+  dados.prefs.eu = nome;
   nuvemFecha();
   await sincronizar(false);
+  /* O nome digitado vira o nome canônico da casa: "gabriel" ou "Gabriel "
+     viram "Gabriel". Sem isso, a autoria e o "eu" do aparelho não batem
+     com os nomes usados no rateio. */
+  const canon = (dados.casa.membros || []).find(m => m.toLowerCase() === nome.toLowerCase());
+  if (canon) dados.prefs.eu = canon;
+  salvarDaNuvem();
+  /* Aparelho que entrou agora estava vazio: moradores, corte e categorias
+     acabaram de chegar. Recarregar faz o app inteiro nascer com eles. */
+  if (precisaRecarregar()) { location.reload(); return; }
   ligarTempoReal();
-  pintarEu(); pintarCfg();
+  pintarEu(); pintarCfg(); pintar();
 }
 
 async function depoisDoLogin() {
@@ -1799,9 +1856,15 @@ async function depoisDoLogin() {
   const { data } = await c.from('membro').select('casa_id,nome_exibicao').eq('user_id', sessao.user.id).maybeSingle();
   if (!data) { telaCasa(); return; }
   casaId = data.casa_id;
+  dados.casa.id = casaId;
   if (data.nome_exibicao) dados.prefs.eu = data.nome_exibicao;
   nuvemFecha();
-  await sincronizar(true);
+  /* Aparelho sem moradores ainda (instalação nova de quem já é membro):
+     só baixa. Subir antes de ter recebido a casa empurraria uma base vazia. */
+  await sincronizar(MEMBROS.length > 0);
+  const canon = (dados.casa.membros || []).find(m => m.toLowerCase() === String(dados.prefs.eu || '').toLowerCase());
+  if (canon && canon !== dados.prefs.eu) { dados.prefs.eu = canon; salvarDaNuvem(); }
+  if (precisaRecarregar()) { location.reload(); return; }
   ligarTempoReal();
   if (configurado()) { pintarEu(); pintarCfg(); pintar(); }
 }

@@ -17,6 +17,7 @@ create table if not exists public.casa (
   parcelamentos   jsonb       not null default '[]'::jsonb,
   categorias      jsonb       not null default '[]'::jsonb,
   parcela_base    text,
+  membros         jsonb       not null default '[]'::jsonb,
   criado_em       timestamptz not null default now()
 );
 
