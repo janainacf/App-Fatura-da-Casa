@@ -233,6 +233,8 @@ h2 em{font-style:normal;color:var(--aviso);font-weight:600;font-family:'IBM Plex
 .estado.fech{background:#E7EDF0;color:var(--p0);border:1px solid #C9D9E0}
 .estado.quit{background:#E4EEE7;color:#2C6049;border:1px solid #C3DBCC}
 .estado b{font-weight:700}
+.estado.off{background:#F6E3E1;color:#7A2620;border:1px solid #E7C3BF;align-items:flex-start}
+.estado.off button{flex:0 0 auto;font-weight:600;text-decoration:underline;color:inherit;padding:0;margin-left:auto}
 
 .vazio-ciclo{background:var(--sup);border:1px dashed var(--regua);border-radius:var(--r);
   padding:30px 22px;text-align:center;color:var(--fraca);font-size:14.5px;line-height:1.5}
@@ -320,6 +322,10 @@ body.sobrio *{transition:none!important;animation:none!important}
     <div class="corte" id="cx-dias">fecha em<b id="dias">—</b></div>
   </div>
 
+  <!-- Aviso de nuvem: aparece quando a casa vive na nuvem mas este aparelho
+       perdeu o contato. Antes não existia — o app seguia funcionando sozinho,
+       calado, e cada celular fechava a fatura do seu jeito. -->
+  <div id="faixa-nuvem" hidden></div>
   <div id="faixa-estado"></div>
 
   <div class="heroi">
@@ -603,6 +609,14 @@ let dados = (() => {
    tinha dados, porque só esses passam pela migração. */
 let sb = null, sessao = null, casaId = null, canal = null, sincronizando = false;
 
+/* A casa já foi para a nuvem neste aparelho? Quem tem código de convite,
+   tem. Sem esta marca, um aparelho que abrisse sem rede não saberia que
+   deveria avisar — acharia que é uma casa só local. */
+if (dados.casa.codigoConvite) dados.casa.naNuvem = true;
+let estadoNuvem = dados.casa.naNuvem ? 'conectando' : 'local';
+let tentativas = 0, reconexao = null, faltaDesde = null;
+function hora() { return new Date().toLocaleTimeString('pt-BR').slice(0, 5); }
+
 /* Quando o que está sendo gravado VEIO da nuvem, gravar não pode disparar um
    novo envio: devolver ao banco o que ele acabou de mandar fecha um laço.
    Esta trava existe para que nenhum eco futuro vire tempestade, mesmo que
@@ -723,7 +737,14 @@ if (dados.casa.tetoBase !== 'acerto') {
   };
   (dados.lancamentos || []).forEach(selar);
   (dados.transferencias || []).forEach(selar);
-  Object.values(dados.ciclos || {}).forEach(selar);
+  /* Meses sem marca recebem a semente: carimbar "agora" faria um mês
+     intocado vencer o mês de verdade do outro aparelho. */
+  Object.values(dados.ciclos || {}).forEach(k => {
+    if (k && !k.atualizadoEm) { k.atualizadoEm = SEMENTE_EM; mexeu = true; }
+    /* status que o app não conhece (apareceu como "undefined" em novembro):
+       volta a "aberto"; a nuvem, mais nova, traz o estado certo ao conectar */
+    if (k && !statusOk(k.status)) { k.status = 'aberto'; mexeu = true; }
+  });
   if (mexeu) salvar();
 })();
 
@@ -760,7 +781,10 @@ const LIMITE = 6;
 function ciclo(c) {
   if (!dados.ciclos[c]) {
     const ap = {}; MEMBROS.forEach(m => ap[m] = null);
-    dados.ciclos[c] = { status: 'aberto', previaEm: null, aprovacoes: ap, fechadoEm: null, marcos: [] };
+    /* Mês criado só porque alguém o abriu para olhar: marca de semente.
+       Assim ele nunca vence o mês de verdade que exista no outro aparelho. */
+    dados.ciclos[c] = { status: 'aberto', previaEm: null, aprovacoes: ap, fechadoEm: null, marcos: [],
+                        atualizadoEm: SEMENTE_EM };
   }
   const k = dados.ciclos[c];
   MEMBROS.forEach(m => { if (!(m in k.aprovacoes)) k.aprovacoes[m] = null; });
@@ -780,8 +804,10 @@ function invalidarAprovacoes(c) {
   const k = ciclo(c);
   if (k.status !== 'conferencia') return false;
   const tinha = MEMBROS.some(m => k.aprovacoes[m]);
-  MEMBROS.forEach(m => k.aprovacoes[m] = null);
-  k.previaEm = null; k.atualizadoEm = agora();
+  const t = agora();
+  k.aprovacoes._em = k.aprovacoes._em || {};
+  MEMBROS.forEach(m => { k.aprovacoes[m] = null; k.aprovacoes._em[m] = t; });
+  k.previaEm = null; k.atualizadoEm = t;
   return tinha;
 }
 
@@ -1015,7 +1041,10 @@ function checarMarcos(ac, L) {
   const pct = v / t * 100;
   const novos = MARCOS.filter(m => pct >= m && !k.marcos.includes(m));
   if (!novos.length) return;
-  novos.forEach(m => k.marcos.push(m)); k.atualizadoEm = agora();
+  /* Sem tocar em atualizadoEm: marcos se somam na mescla. Se avançassem a
+     marca do mês, um aviso de teto disparado num aparelho desatualizado
+     poderia desfazer uma prévia ou definitiva feita no outro. */
+  novos.forEach(m => k.marcos.push(m));
   salvar();
   if (!dados.casa.alertas) return;
 
@@ -1256,7 +1285,14 @@ function pintarDoc(c) {
   const pago = (dados.transferencias||[]).find(t => t.competencia === c && t.finalidade === 'acerto');
 
   let h = `<div class="doc-cab">${tituloComp(c)} de ${c.split('-')[0]}</div>
-    <div class="doc-sub">Ciclo de ${periodo(c)} · ${ROT[k.status]}${k.previaEm?' · prévia de '+dataBR(k.previaEm):''}</div>`;
+    <div class="doc-sub">Ciclo de ${periodo(c)} · ${ROT[k.status] || 'Aberta'}${k.previaEm?' · prévia de '+dataBR(k.previaEm):''}</div>`;
+  /* Sem conexão, este documento pode não refletir o que o outro aparelho já
+     fez — foi assim que outubro apareceu "aberto" num celular e "quitado" no
+     outro. O aviso diz isso com todas as letras. */
+  if (dados.casa.naNuvem && estadoNuvem !== 'ok')
+    h += `<div class="estado off" style="margin-top:14px"><span><b>Sem conexão com a nuvem.</b>
+      Esta fatura pode estar desatualizada em relação ao outro aparelho. De acordo, definitiva
+      e pagamento ficam bloqueados até a conexão voltar.</span></div>`;
 
   if (est.length) h += `<div class="estado conf" style="margin-top:14px"><span>
     <b>Provisória.</b> ${BRL(est.reduce((s,l)=>s+l.valorCent,0))} em ${est.length} estimativa${est.length>1?'s':''}
@@ -1290,7 +1326,7 @@ function pintarDoc(c) {
        cada um marca o próprio de acordo no próprio aparelho; sem ela, uma
        pessoa marca os dois a partir do que a outra disse por mensagem. */
     h += `</div><div style="font-size:12.5px;color:var(--fraca);line-height:1.45">
-      ${casaId
+      ${dados.casa.naNuvem
         ? 'Cada um marca o próprio de acordo, no próprio aparelho — a marcação aparece do outro lado em segundos.'
         : 'Sem sincronização, marque aqui o de acordo que a outra pessoa der por mensagem.'}
       Qualquer alteração num lançamento derruba as duas marcações.</div>`;
@@ -1298,6 +1334,9 @@ function pintarDoc(c) {
     h += `<h3>De acordo</h3>`;
     MEMBROS.forEach(m => h += `<div class="dl"><span>${m}</span><span>${dataBR(k.aprovacoes[m]) || '—'}</span></div>`);
   }
+
+  if (k.status === 'fechado')
+    h += `<button class="alt" id="doc-reabrir" style="margin-top:10px">Reabrir esta fatura</button>`;
 
   if (pago) h += `<h3>Pagamento</h3>
     <div class="dl"><span>${pago.de} pagou a ${pago.para}</span><span>${BRL(pago.valorCent)}</span></div>
@@ -1311,22 +1350,47 @@ function pintarDoc(c) {
   });
 
   $('doc-corpo').innerHTML = h;
-  $('doc-titulo').textContent = `${tituloComp(c)} · ${ROT[k.status]}`;
+  $('doc-titulo').textContent = `${tituloComp(c)} · ${ROT[k.status] || 'Aberta'}`;
 
   $('doc-corpo').querySelectorAll('[data-ap]').forEach(b => b.onclick = () => {
     const m = b.dataset.ap;
-    k.aprovacoes[m] = k.aprovacoes[m] ? null : agora(); k.atualizadoEm = agora();
+    /* Com a casa na nuvem, cada um marca só o próprio. Marcar pelo outro
+       produziu, em outubro, um de acordo com data que não era a dele. */
+    if (dados.casa.naNuvem && m !== dados.prefs.eu) {
+      toast(`<b>Cada um marca o próprio de acordo.</b><br>O de ${m} é dado no aparelho de ${m}.`);
+      return;
+    }
+    if (!podeDecidir()) return;
+    const k = ciclo(c), t = agora();      /* relido agora: a sincronização pode ter trocado o objeto */
+    k.aprovacoes[m] = k.aprovacoes[m] ? null : t;
+    k.aprovacoes._em = { ...(k.aprovacoes._em || {}), [m]: t };
+    /* sem tocar em atualizadoEm: de acordo tem hora própria, pessoa a pessoa */
     salvar(); pintarDoc(c); pintar();
   });
+
+  const reabrir = $('doc-reabrir');
+  if (reabrir) reabrir.onclick = () => {
+    if (!podeDecidir()) return;
+    if (!confirm('Reabrir desfaz a definitiva e os de acordo dos dois. Continuar?')) return;
+    const k = ciclo(c), t = agora();
+    k.status = 'aberto'; k.previaEm = null; k.fechadoEm = null;
+    k.aprovacoes._em = k.aprovacoes._em || {};
+    MEMBROS.forEach(m => { k.aprovacoes[m] = null; k.aprovacoes._em[m] = t; });
+    k.atualizadoEm = t;
+    salvar(); pintarDoc(c); pintar();
+  };
 
   const acao = $('doc-acao');
   const todos = MEMBROS.every(m => k.aprovacoes[m]);
   if (k.status === 'aberto') {
     acao.hidden = false; acao.textContent = 'Emitir prévia';
-    acao.onclick = () => { k.status = 'conferencia'; k.previaEm = agora(); k.atualizadoEm = agora(); salvar(); pintarDoc(c); pintar(); };
+    acao.onclick = () => { if (!podeDecidir()) return; const k = ciclo(c);
+      k.status = 'conferencia'; k.previaEm = agora(); k.atualizadoEm = agora(); salvar(); pintarDoc(c); pintar(); };
   } else if (k.status === 'conferencia' && todos && !est.length) {
     acao.hidden = false; acao.textContent = 'Emitir definitiva';
-    acao.onclick = () => { k.status = 'fechado'; k.fechadoEm = agora(); k.atualizadoEm = agora(); salvar(); pintarDoc(c); pintar(); };
+    acao.onclick = () => { if (!podeDecidir()) return; const k = ciclo(c);
+      if (!MEMBROS.every(m => k.aprovacoes[m])) { pintarDoc(c); return; }   /* algo mudou desde a tela */
+      k.status = 'fechado'; k.fechadoEm = agora(); k.atualizadoEm = agora(); salvar(); pintarDoc(c); pintar(); };
   } else if (k.status === 'fechado') {
     acao.hidden = false; acao.textContent = 'Registrar pagamento';
     acao.onclick = () => registrarPagamento(c, ac);
@@ -1334,6 +1398,8 @@ function pintarDoc(c) {
 }
 
 function registrarPagamento(c, ac) {
+  if (!podeDecidir()) return;
+  if (ciclo(c).status !== 'fechado') { pintarDoc(c); return; }   /* outro aparelho já registrou */
   if (!ac) { const k0 = ciclo(c); k0.status = 'quitado'; k0.pagoEm = agora(); k0.atualizadoEm = agora(); salvar(); pintarDoc(c); pintar(); return; }
   const v = prompt(`Quanto ${ac.de} transferiu para ${ac.para}?`, (ac.valorCent/100).toFixed(2).replace('.', ','));
   if (v === null) return;
@@ -1373,7 +1439,7 @@ $('fechar-mes').onclick = () => abrirDoc(COMP);
 $('cfg-teto').onchange = () => {
   const v = parseFloat($('cfg-teto').value.replace(/\./g, '').replace(',', '.').trim());
   dados.casa.tetoCent = (isNaN(v) || v <= 0) ? 0 : cent(v);
-  const kc = ciclo(COMP); kc.marcos = []; kc.atualizadoEm = agora();
+  const kc = ciclo(COMP); kc.marcos = [];
   salvar(); pintarCfg(); pintar();
 };
 $('sw-alerta').onclick = async () => {
@@ -1408,7 +1474,7 @@ $('btn-inst').onclick = async () => { if (!promptInst) return; promptInst.prompt
 /* Marca de versão. Existe para responder, de dentro do aparelho, "qual código
    está rodando aqui?" — pergunta que já custou uma tarde de diagnóstico às
    cegas. Aparece no fim dos ajustes. */
-const VERSAO = '2026-10-17.10';
+const VERSAO = '2026-10-29.11';
 
 if ('serviceWorker' in navigator && location.protocol.startsWith('http'))
   addEventListener('load', () => navigator.serviceWorker.register('./sw.js')
@@ -1495,6 +1561,12 @@ const L2DB = l => ({
   criado_em: l.criadoEm || agora(), atualizado_em: l.atualizadoEm || agora(),
   excluido_em: l.excluidoEm || null
 });
+/* Horário que chega da nuvem vem como "2026-10-21T14:42:14.342+00:00", às vezes
+   com microssegundos; o app gera "…342Z". Como horários são comparados como
+   texto, no mesmo instante "+" e os dígitos de microssegundo ordenam antes de
+   "Z". Tudo o que chega é trazido para o formato do app antes de comparar. */
+function isoZ(x) { if (!x) return x; const d = new Date(x); return isNaN(d) ? x : d.toISOString(); }
+
 const DB2L = r => {
   const l = { id: r.id, competencia: r.competencia, descricao: r.descricao,
     valorCent: r.valor_cent, pagador: r.pagador, icone: r.icone, categoria: r.categoria,
@@ -1502,7 +1574,7 @@ const DB2L = r => {
     dataDespesa: r.data_despesa, parcela: r.parcela, parcelaGrupoId: r.parcela_grupo_id,
     valorTotalCompraCent: r.valor_total_compra_cent, recorrenciaId: r.recorrencia_id,
     obs: r.obs, criadoPor: r.criado_por, atualizadoPor: r.atualizado_por,
-    criadoEm: r.criado_em, atualizadoEm: r.atualizado_em, excluidoEm: r.excluido_em };
+    criadoEm: isoZ(r.criado_em), atualizadoEm: isoZ(r.atualizado_em), excluidoEm: isoZ(r.excluido_em) };
   if (r.estimado) { l.estimado = true; l.base = r.base; }
   Object.keys(l).forEach(k => { if (l[k] === null) delete l[k]; });
   return l;
@@ -1516,14 +1588,17 @@ const T2DB = t => ({
 });
 const DB2T = r => ({ id: r.id, competencia: r.competencia, de: r.de_membro, para: r.para_membro,
   valorCent: r.valor_cent, data: r.data, finalidade: r.finalidade, obs: r.obs,
-  considerar: r.considerar, criadoPor: r.criado_por, criadoEm: r.criado_em,
-  atualizadoEm: r.atualizado_em, excluidoEm: r.excluido_em });
+  considerar: r.considerar, criadoPor: r.criado_por, criadoEm: isoZ(r.criado_em),
+  atualizadoEm: isoZ(r.atualizado_em), excluidoEm: isoZ(r.excluido_em) });
 const C2DB = (comp, k) => ({
-  casa_id: casaId, competencia: comp, status: k.status || 'aberto',
+  casa_id: casaId, competencia: comp, status: k.status,
   aprovacoes: k.aprovacoes || {}, marcos: k.marcos || [],
   previa_em: k.previaEm || null, fechado_em: k.fechadoEm || null, pago_em: k.pagoEm || null,
   semeado: (dados.ciclosSemeados || []).includes(comp),
-  atualizado_em: k.atualizadoEm || agora()
+  /* Nunca a hora do envio: um mês que alguém só abriu para olhar ganhava a
+     marca "agora" e passava a vencer o mês de verdade, já fechado, do outro
+     aparelho. Sem marca, vale a semente — que qualquer ação real supera. */
+  atualizado_em: k.atualizadoEm || SEMENTE_EM
 });
 
 /* ── mesclagem: a linha mais recente ganha, nunca se apaga sem substituto ── */
@@ -1562,19 +1637,44 @@ function mesclarTransferencia(r) {
   }
   return false;
 }
+/* Mês que chega da nuvem: mesclado por campo, com as mesmas regras do banco
+   (05-fechamento.sql). Antes, a versão mais nova substituía o mês inteiro —
+   e com ele o de acordo de quem não tinha mexido.
+     status, prévia, definitiva, pagamento → vence a versão mais nova
+     de acordo                             → pessoa a pessoa, pela hora de cada marcação
+     marcos do teto                        → união
+   Devolve true só se algo de fato mudou aqui — eco do próprio envio não conta. */
+function statusOk(st) { return ['aberto', 'conferencia', 'fechado', 'quitado'].includes(st); }
+
 function mesclarCiclo(r) {
   if (!r || !cicloOk(r.competencia)) return false;
-  const k = dados.ciclos[r.competencia];
-  /* >= e não >: com > , marcas IGUAIS contavam como novidade, e o eco do
-     próprio envio voltava como alteração — segundo laço, independente do
-     carimbo ausente. Só aplica o que é estritamente mais recente. */
-  if (k && (k.atualizadoEm || '') >= (r.atualizado_em || '')) return false;
-  dados.ciclos[r.competencia] = { status: r.status, aprovacoes: r.aprovacoes || {},
-    marcos: r.marcos || [], previaEm: r.previa_em, fechadoEm: r.fechado_em,
-    pagoEm: r.pago_em, atualizadoEm: r.atualizado_em };
+  const atual = dados.ciclos[r.competencia];
+  const antes = JSON.stringify(atual || null);
+  const k = atual || { status: 'aberto', previaEm: null, fechadoEm: null, pagoEm: null,
+                       aprovacoes: {}, marcos: [], atualizadoEm: SEMENTE_EM };
+
+  const rAt = isoZ(r.atualizado_em) || SEMENTE_EM;
+  if (statusOk(r.status) && rAt >= isoZ(k.atualizadoEm || SEMENTE_EM)) {
+    k.status = r.status; k.previaEm = isoZ(r.previa_em) || null; k.fechadoEm = isoZ(r.fechado_em) || null;
+    k.pagoEm = r.pago_em || null; k.atualizadoEm = rAt;
+  }
+  if (!statusOk(k.status)) k.status = 'aberto';
+
+  const la = k.aprovacoes || {}, le = la._em || {};
+  const ra = r.aprovacoes || {}, re = ra._em || {};
+  const em = {};
+  new Set([...Object.keys(la), ...Object.keys(ra)]).forEach(m => {
+    if (m === '_em') return;
+    const lt = le[m] || SEMENTE_EM, rt = re[m] || SEMENTE_EM;
+    if (m in ra && rt >= lt) { la[m] = ra[m]; em[m] = rt; } else em[m] = lt;
+  });
+  la._em = em; k.aprovacoes = la;
+
+  k.marcos = [...new Set([...(k.marcos || []), ...(r.marcos || [])])].sort((a, b) => a - b);
+  dados.ciclos[r.competencia] = k;
   if (r.semeado && !(dados.ciclosSemeados || []).includes(r.competencia))
     (dados.ciclosSemeados = dados.ciclosSemeados || []).push(r.competencia);
-  return true;
+  return JSON.stringify(k) !== antes;
 }
 
 /* ── estado visível ── */
@@ -1596,10 +1696,31 @@ async function puxar() {
     c.from('ciclo').select('*').eq('casa_id', casaId),
     c.from('casa').select('*').eq('id', casaId).maybeSingle()
   ]);
-  if (lan.error) throw lan.error;
+  /* As quatro consultas são conferidas. Antes só a primeira era: uma falha
+     nas outras passava por "nada novo" e o app se dizia sincronizado. */
+  for (const r of [lan, tra, cic, cas]) if (r.error) throw r.error;
   (lan.data || []).forEach(r => { if (mesclarLancamento(r)) n++; });
   (tra.data || []).forEach(r => { if (mesclarTransferencia(r)) n++; });
   (cic.data || []).forEach(r => { if (mesclarCiclo(r)) n++; });
+  /* Um pagamento por mês. Se a nuvem já tem o de um mês, qualquer outro
+     registro local daquele mês — feito offline, em paralelo — vai para a
+     quarentena. Não some: só deixa de contar e de ser reenviado. */
+  const pagoNaNuvem = new Map();
+  (tra.data || []).forEach(r => { if (r.finalidade === 'acerto' && !r.excluido_em) pagoNaNuvem.set(r.competencia, r.id); });
+  /* E pagamento que a nuvem não conhece, de um mês que — já mesclado — não
+     está quitado, também é resto de trabalho offline: pagamento só se
+     registra em mês definitivo, e com a nuvem em dia. */
+  const naNuvemIds = new Set((tra.data || []).map(r => r.id));
+  const tl = dados.transferencias || [];
+  for (let i = tl.length - 1; i >= 0; i--) {
+    const t = tl[i];
+    if (t.finalidade !== 'acerto' || t.excluidoEm || naNuvemIds.has(t.id)) continue;
+    const idNuvem = pagoNaNuvem.get(t.competencia);
+    const mes = dados.ciclos[t.competencia];
+    if ((idNuvem && idNuvem !== t.id) || !mes || mes.status !== 'quitado') {
+      dados.quarentena.transferencias.unshift(t); tl.splice(i, 1); n++;
+    }
+  }
   if (cas.data) {
     dados.casa.nome = cas.data.nome;
     dados.casa.diaCorte = cas.data.dia_corte;
@@ -1635,7 +1756,8 @@ async function empurrar() {
     const { error } = await c.from('transferencia').upsert(tr, { onConflict: 'id' });
     if (error) throw error; n += tr.length;
   }
-  const ci = Object.entries(dados.ciclos || {}).filter(([comp]) => cicloOk(comp)).map(([comp, k]) => C2DB(comp, k));
+  const ci = Object.entries(dados.ciclos || {})
+    .filter(([comp, k]) => cicloOk(comp) && k && statusOk(k.status)).map(([comp, k]) => C2DB(comp, k));
   if (ci.length) {
     const { error } = await c.from('ciclo').upsert(ci, { onConflict: 'casa_id,competencia' });
     if (error) throw error; n += ci.length;
@@ -1658,10 +1780,12 @@ async function sincronizar(completo) {
     const baixou = await puxar();
     if (completo) await empurrar();
     salvarDaNuvem();   /* acabou de enviar; gravar não deve reenviar */
-    sincEstado('on', 'Sincronizado · ' + new Date().toLocaleTimeString('pt-BR').slice(0, 5), 'Sincronizar');
+    sincEstado('on', 'Sincronizado · ' + hora(), 'Sincronizar');
+    marcarNuvem('ok');
+    if (!canal) ligarTempoReal();
     if (baixou) { pintar(); pintarCfg(); }
   } catch (e) {
-    sincEstado('erro', 'Erro: ' + (e.message || e), 'Tentar de novo');
+    falhou(e);
   } finally { sincronizando = false; }
 }
 
@@ -1671,8 +1795,8 @@ function enfileirar() {
   if (!casaId) return;
   clearTimeout(fila);
   fila = setTimeout(async () => {
-    try { await empurrar(); sincEstado('on', 'Sincronizado · ' + new Date().toLocaleTimeString('pt-BR').slice(0, 5), 'Sincronizar'); }
-    catch (e) { sincEstado('erro', 'Erro ao enviar: ' + (e.message || e), 'Tentar de novo'); }
+    try { await empurrar(); sincEstado('on', 'Sincronizado · ' + hora(), 'Sincronizar'); marcarNuvem('ok'); }
+    catch (e) { falhou(e); }
   }, 1200);
 }
 
@@ -1697,7 +1821,9 @@ function ligarTempoReal() {
       p => util(p, mesclarTransferencia))
     .on('postgres_changes', { event: '*', schema: 'public', table: 'ciclo', filter: 'casa_id=eq.' + casaId },
       p => util(p, mesclarCiclo))
-    .subscribe();
+    /* Toda vez que o canal (re)conecta — inclusive depois de o celular
+       dormir —, uma conferência completa recupera o que se perdeu. */
+    .subscribe(st => { if (st === 'SUBSCRIBED') setTimeout(() => sincronizar(false), 300); });
 }
 
 /* ── telas ── */
@@ -1751,7 +1877,7 @@ function telaConta(modo, msg) {
     if (!r.data.session)
       return telaConta('entrar', { ok: true, t: 'Conta criada. Confirme o e-mail que acabou de chegar e depois entre.' });
     sessao = r.data.session;
-    await depoisDoLogin();
+    try { await depoisDoLogin(); } catch (e) { falhou(e); }
   };
 }
 
@@ -1839,6 +1965,7 @@ async function criarCasa() {
       .select('codigo_convite').eq('id', casaId).single();
     if (e3) throw e3;
     dados.casa.codigoConvite = casa.codigo_convite;
+    dados.casa.naNuvem = true;
     salvar();
     nuvemFecha();
     await sincronizar(true);
@@ -1859,6 +1986,7 @@ async function entrarNaCasa() {
   if (error) { telaEntrar({ t: error.message }, !MEMBROS.length, cod, nome); return; }
   casaId = data;
   dados.casa.id = casaId;
+  dados.casa.naNuvem = true;
   dados.prefs.eu = nome;
   nuvemFecha();
   await sincronizar(false);
@@ -1875,17 +2003,107 @@ async function entrarNaCasa() {
   pintarEu(); pintarCfg(); pintar();
 }
 
+/* ═══ Conexão com a nuvem ═════════════════════════════════════════════════
+   Estados:
+     local      — a casa nunca foi para a nuvem; o app funciona só aqui.
+     conectando — tentando falar com a nuvem.
+     ok         — sincronizado.
+     falha      — a casa vive na nuvem, mas este aparelho perdeu o contato.
+     sessao     — o login venceu; é preciso entrar de novo.
+   Em falha e sessao o app AVISA na tela principal e tenta de novo sozinho.
+   Antes não avisava nem tentava: seguia funcionando calado, e em outubro
+   cada celular fechou a fatura do seu jeito sem que o outro soubesse.
+
+   E decisões que são dos dois — de acordo, definitiva, pagamento, reabrir —
+   só valem com a nuvem em dia. */
+/* estadoNuvem, tentativas, reconexao e faltaDesde: declarados lá em cima, junto
+   de salvar() — pelo mesmo motivo de casaId. */
+
+function marcarNuvem(estado) {
+  estadoNuvem = estado;
+  if (estado === 'ok') { tentativas = 0; faltaDesde = null; clearTimeout(reconexao); }
+  if ((estado === 'falha' || estado === 'sessao') && !faltaDesde) faltaDesde = new Date();
+  pintarFaixaNuvem();
+}
+
+function pintarFaixaNuvem() {
+  const f = $('faixa-nuvem'); if (!f) return;
+  const ver = !!dados.casa.naNuvem && (estadoNuvem === 'falha' || estadoNuvem === 'sessao');
+  f.hidden = !ver;
+  if (!ver) { f.innerHTML = ''; return; }
+  const desde = faltaDesde ? faltaDesde.toLocaleTimeString('pt-BR').slice(0, 5) : '';
+  f.innerHTML = estadoNuvem === 'sessao'
+    ? `<div class="estado off"><span><b>Seu login venceu.</b> Entre de novo para voltar a sincronizar.
+         Até lá, de acordo, definitiva e pagamento ficam bloqueados.</span><button id="fn-acao">Entrar</button></div>`
+    : `<div class="estado off"><span><b>Sem conexão com a nuvem${desde ? ' desde ' + desde : ''}.</b>
+         O que você lançar fica neste aparelho e sobe quando a conexão voltar.
+         De acordo, definitiva e pagamento ficam bloqueados até lá.</span><button id="fn-acao">Tentar agora</button></div>`;
+  $('fn-acao').onclick = () => {
+    if (estadoNuvem === 'sessao') return telaConta('entrar');
+    tentativas = 0; iniciarNuvem();
+  };
+}
+
+function agendarReconexao() {
+  clearTimeout(reconexao);
+  const espera = [5, 15, 30, 60, 120][Math.min(tentativas, 4)] * 1000;
+  tentativas++;
+  reconexao = setTimeout(() => iniciarNuvem(), espera);
+}
+
+function falhou(e) {
+  const msg = String((e && (e.message || e.error_description)) || e || 'erro desconhecido');
+  sincEstado('erro', 'Sem conexão: ' + msg.slice(0, 80), 'Tentar de novo');
+  marcarNuvem('falha');
+  agendarReconexao();
+}
+
+function sessaoVencida() {
+  sessao = null;
+  sincEstado('erro', 'Login vencido', 'Entrar');
+  marcarNuvem('sessao');
+  agendarReconexao();          /* se era só a rede, volta sozinho */
+}
+
+/** Decisões dos dois só com a nuvem em dia. Casa que nunca foi para a nuvem
+ *  continua decidindo localmente, como sempre funcionou. */
+function podeDecidir() {
+  if (!dados.casa.naNuvem || estadoNuvem === 'ok') return true;
+  toast(estadoNuvem === 'conectando'
+    ? '<b>Conectando à nuvem…</b><br>Tente de novo em alguns segundos.'
+    : '<b>Sem conexão com a nuvem.</b><br>De acordo, definitiva e pagamento precisam dos dois aparelhos em dia. Tente quando a conexão voltar.');
+  return false;
+}
+
+/* Biblioteca do Supabase: se o aparelho abriu o app sem rede, o script
+   não carregou. Sem isto, nenhuma reconexão seria possível até fechar
+   e abrir o app. */
+let carregandoLib = null;
+function carregarBiblioteca() {
+  if (window.supabase || carregandoLib) return;
+  carregandoLib = document.createElement('script');
+  carregandoLib.src = 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js';
+  carregandoLib.onload  = () => { carregandoLib = null; tentativas = 0; iniciarNuvem(); };
+  carregandoLib.onerror = () => { if (carregandoLib) carregandoLib.remove(); carregandoLib = null; };
+  document.head.appendChild(carregandoLib);
+}
+
 async function depoisDoLogin() {
   const c = cliente();
-  const { data } = await c.from('membro').select('casa_id,nome_exibicao').eq('user_id', sessao.user.id).maybeSingle();
-  if (!data) { telaCasa(); return; }
+  /* O erro desta consulta era descartado: sem rede, "nenhum resultado" virava
+     "esta conta não tem casa" — e o app oferecia CRIAR UMA CASA NOVA. */
+  const { data, error } = await c.from('membro').select('casa_id,nome_exibicao').eq('user_id', sessao.user.id).maybeSingle();
+  if (error) throw error;
+  if (!data) { marcarNuvem('local'); telaCasa(); return; }
   casaId = data.casa_id;
   dados.casa.id = casaId;
+  dados.casa.naNuvem = true;
   if (data.nome_exibicao) dados.prefs.eu = data.nome_exibicao;
   nuvemFecha();
   /* Aparelho sem moradores ainda (instalação nova de quem já é membro):
      só baixa. Subir antes de ter recebido a casa empurraria uma base vazia. */
   await sincronizar(MEMBROS.length > 0);
+  if (estadoNuvem !== 'ok') return;          /* sincronizar já avisou e reagendou */
   const canon = (dados.casa.membros || []).find(m => m.toLowerCase() === String(dados.prefs.eu || '').toLowerCase());
   if (canon && canon !== dados.prefs.eu) { dados.prefs.eu = canon; salvarDaNuvem(); }
   if (precisaRecarregar()) { location.reload(); return; }
@@ -1893,10 +2111,9 @@ async function depoisDoLogin() {
   if (configurado()) { pintarEu(); pintarCfg(); pintar(); }
 }
 
-/* iniciarNuvem chama depoisDoLogin. Uma chamada de volta aqui dentro fecharia
-   um círculo: conectar → sincronizar → conectar, sem fim. Havia exatamente
-   isso nesta linha, e era o que fazia o indicador piscar entre "Conectando…"
-   e "Sincronizando…". A trava abaixo impede que volte por outro caminho. */
+/* iniciarNuvem chama depoisDoLogin. Uma chamada de volta lá dentro fecharia
+   um círculo — conectar → sincronizar → conectar — que já fez o indicador
+   piscar sem parar. A trava impede que volte por outro caminho. */
 let conectando = false;
 
 async function iniciarNuvem() {
@@ -1907,17 +2124,42 @@ async function iniciarNuvem() {
 
 async function conectar() {
   const c = cliente();
-  if (!c) { sincEstado('', 'Só neste aparelho', 'Conectar'); return; }
-  const { data } = await c.auth.getSession();
-  sessao = data.session;
-  if (!sessao) { sincEstado('', 'Só neste aparelho', 'Conectar'); return; }
+  if (!c) {
+    if (dados.casa.naNuvem) { carregarBiblioteca(); return falhou(new Error('o app abriu sem rede')); }
+    sincEstado('', 'Só neste aparelho', 'Conectar'); return;
+  }
+  marcarNuvem('conectando');
   sincEstado('indo', 'Conectando…');
-  await depoisDoLogin();
+  let r;
+  try { r = await c.auth.getSession(); } catch (e) { return falhou(e); }
+  if (r.error) {
+    const st = r.error.status || 0;
+    return (st >= 400 && st < 500) ? sessaoVencida() : falhou(r.error);
+  }
+  sessao = r.data.session;
+  if (!sessao) {
+    if (dados.casa.naNuvem) return sessaoVencida();
+    marcarNuvem('local'); sincEstado('', 'Só neste aparelho', 'Conectar'); return;
+  }
+  try { await depoisDoLogin(); } catch (e) { falhou(e); }
 }
 
+/* Voltar ao app, recuperar a rede, ou simplesmente o tempo passar: em todos
+   os casos o app confere a nuvem. A conferência periódica também cobre os
+   avisos em tempo real que se perdem quando o celular dorme. */
+addEventListener('online', () => { if (dados.casa.naNuvem) { tentativas = 0; iniciarNuvem(); } });
+document.addEventListener('visibilitychange', () => {
+  if (document.hidden || !dados.casa.naNuvem) return;
+  if (estadoNuvem === 'ok') sincronizar(false);
+  else if (estadoNuvem !== 'conectando') { tentativas = 0; iniciarNuvem(); }
+});
+setInterval(() => {
+  if (!document.hidden && dados.casa.naNuvem && estadoNuvem === 'ok') sincronizar(false);
+}, 120000);
+
 $('sinc-btn').onclick = () => {
-  if (!sessao) return telaConta('entrar');
-  if (!casaId) return telaCasa();
+  if (estadoNuvem === 'sessao' || !sessao) return telaConta('entrar');
+  if (!casaId) { if (dados.casa.naNuvem) { tentativas = 0; return iniciarNuvem(); } return telaCasa(); }
   sincronizar(true);
 };
 
