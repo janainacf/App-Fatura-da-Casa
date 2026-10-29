@@ -1,0 +1,23 @@
+# Fatura da Casa — mantém o Supabase acordado.
+# O plano gratuito pausa o projeto depois de uma semana sem uso. Uma vez por
+# dia, o GitHub faz uma consulta leve ao banco. Se a consulta falhar (projeto
+# pausado ou fora do ar), o GitHub manda um e-mail avisando.
+name: Manter Supabase ativo
+
+on:
+  schedule:
+    - cron: '17 11 * * *'   # todo dia, 8h17 em Brasília
+  workflow_dispatch:         # botão "Run workflow", para testar na hora
+
+jobs:
+  consulta:
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    steps:
+      - name: Consulta leve ao banco
+        run: |
+          curl -fsS --retry 3 --retry-delay 20 \
+            "https://iafbaizkbeuscbjbctms.supabase.co/rest/v1/casa?select=id&limit=1" \
+            -H "apikey: sb_publishable_KEYqm5sTMEluXqmIVJrCfQ_iyPbCxy4"
+          echo
+          echo "Supabase respondeu."
