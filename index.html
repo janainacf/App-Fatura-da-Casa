@@ -567,7 +567,11 @@ const CORTE_PADRAO = 20;
 const MES = ['janeiro','fevereiro','março','abril','maio','junho','julho','agosto','setembro','outubro','novembro','dezembro'];
 const nomeComp = c => { const [a, m] = c.split('-').map(Number); return `fatura de ${MES[m-1]}`; };
 const tituloComp = c => { const [a, m] = c.split('-').map(Number); return `Fatura de ${MES[m-1]}`; };
-const hojeISO = () => new Date().toISOString().slice(0, 10);
+/* Data de hoje no relógio do aparelho. toISOString() dá a data em UTC: em
+   Brasília, a partir das 21h já é "amanhã" — e no dia 20, depois das 21h, a
+   despesa caía no ciclo seguinte. */
+const hojeISO = () => { const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`; };
 const agora = () => new Date().toISOString();
 const novoId = () => (crypto.randomUUID ? crypto.randomUUID()
   : 'id-' + Date.now().toString(36) + '-' + Math.random().toString(36).slice(2, 9));
@@ -797,7 +801,15 @@ const periodo = c => {
   const dd = n => String(n).padStart(2, '0');
   return `${dd(CORTE + 1)}/${dd(mi)}/${ai} a ${dd(CORTE)}/${dd(mf)}/${af}`;
 };
-const dataBR = iso => iso ? new Date(iso).toLocaleDateString('pt-BR') : '';
+/* Data pura ("2026-10-25") é lida como meia-noite em UTC — em Brasília, 21h do
+   dia anterior. Por isso o pagamento de 25/10 aparecia como 24/10. Data pura
+   é formatada direto, sem passar por fuso. */
+const dataBR = iso => {
+  if (!iso) return '';
+  const s = String(iso);
+  if (/^\d{4}-\d{2}-\d{2}$/.test(s)) return `${s.slice(8, 10)}/${s.slice(5, 7)}/${s.slice(0, 4)}`;
+  return new Date(s).toLocaleDateString('pt-BR');
+};
 
 /* alteração em ciclo sob conferência derruba as aprovações (RN-10) */
 function invalidarAprovacoes(c) {
@@ -1474,7 +1486,7 @@ $('btn-inst').onclick = async () => { if (!promptInst) return; promptInst.prompt
 /* Marca de versão. Existe para responder, de dentro do aparelho, "qual código
    está rodando aqui?" — pergunta que já custou uma tarde de diagnóstico às
    cegas. Aparece no fim dos ajustes. */
-const VERSAO = '2026-10-29.11';
+const VERSAO = '2026-10-29.12';
 
 if ('serviceWorker' in navigator && location.protocol.startsWith('http'))
   addEventListener('load', () => navigator.serviceWorker.register('./sw.js')
