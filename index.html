@@ -460,6 +460,7 @@ body.sobrio *{transition:none!important;animation:none!important}
     <div class="campo" id="c-rat">
       <label>Divisão</label>
       <div class="duplo" id="f-rat"></div>
+      <div class="nota-comp" id="f-rat-nota" hidden></div>
     </div>
   </div>
   <div class="pe-folha">
@@ -945,7 +946,7 @@ function linha(l, estimado) {
   const parc = l.parcela
     ? ` · ${l.parcela}${l.valorTotalCompraCent ? ' de ' + BRL(l.valorTotalCompraCent) : ''}` : '';
   const meta = estimado ? `<span class="selo-est">estimado</span> · ${l.base}`
-    : `${l.pagador}${l.dataDespesa ? ' · ' + ddmm(l.dataDespesa) : ''}${parc}${l.tipoRateio !== 'igual' ? ' · só de um' : ''}`;
+    : `${l.pagador}${l.dataDespesa ? ' · ' + ddmm(l.dataDespesa) : ''}${parc}${(l.tipoRateio || 'igual').startsWith('integral:') ? ' · só de ' + l.tipoRateio.slice(9).split(' ')[0] : l.tipoRateio && l.tipoRateio !== 'igual' ? ' · só de um' : ''}`;
   const aut = autoria(l);
   return `<button class="item${estimado ? ' est' : ''}" data-id="${l.id}">
     <div class="tag ${ini(l.pagador)}">${l.icone}</div>
@@ -1157,16 +1158,21 @@ function montarChips() {
     `<button class="chip${rasc.pagador === m ? (i === 1 ? ' p1on' : ' p0on') : ''}" data-pag="${m}">${m}</button>`).join('');
   $('f-pag').querySelectorAll('[data-pag]').forEach(b => b.onclick = () => {
     rasc.pagador = b.dataset.pag;
-    if (rasc.rateio.startsWith('integral:')) rasc.rateio = 'integral:' + rasc.pagador;
     montarChips();
   });
   $('f-cat').innerHTML = CATEGORIAS.map(([ic, nome]) =>
     `<button class="chip${rasc.categoria === nome ? ' on' : ''}" data-cat="${nome}" data-ic="${ic}">${ic} ${nome}</button>`).join('');
   $('f-cat').querySelectorAll('[data-cat]').forEach(b => b.onclick = () => {
     rasc.categoria = b.dataset.cat; rasc.icone = b.dataset.ic; montarChips(); });
-  $('f-rat').innerHTML = [['igual','Dos dois'],['integral:' + rasc.pagador,'Só de ' + rasc.pagador.split(' ')[0]]]
+  /* "Só de" vale para qualquer um, não só para quem pagou: a Janaína paga uma
+     despesa que é toda do Gabriel e ele reembolsa 100% no acerto. */
+  $('f-rat').innerHTML = [['igual','Dos dois'], ...MEMBROS.map(m => ['integral:' + m, 'Só de ' + m.split(' ')[0]])]
     .map(([v, t]) => `<button class="chip${rasc.rateio === v ? ' on' : ''}" data-rat="${v}">${t}</button>`).join('');
   $('f-rat').querySelectorAll('[data-rat]').forEach(b => b.onclick = () => { rasc.rateio = b.dataset.rat; montarChips(); });
+  const dono = rasc.rateio.startsWith('integral:') ? rasc.rateio.slice(9) : null;
+  $('f-rat-nota').hidden = !(dono && dono !== rasc.pagador);
+  if (dono && dono !== rasc.pagador)
+    $('f-rat-nota').textContent = `${rasc.pagador.split(' ')[0]} pagou e ${dono.split(' ')[0]} reembolsa o valor inteiro no acerto do mês.`;
   const OPC = [1,2,3,4,5,6,8,10,12];
   $('f-parc').innerHTML = OPC.map(k =>
     `<button class="chip${rasc.parcelas === k ? ' on' : ''}" data-k="${k}">${k === 1 ? 'à vista' : k + '×'}</button>`).join('')
@@ -1486,7 +1492,7 @@ $('btn-inst').onclick = async () => { if (!promptInst) return; promptInst.prompt
 /* Marca de versão. Existe para responder, de dentro do aparelho, "qual código
    está rodando aqui?" — pergunta que já custou uma tarde de diagnóstico às
    cegas. Aparece no fim dos ajustes. */
-const VERSAO = '2026-10-29.12';
+const VERSAO = '2026-11-14.13';
 
 if ('serviceWorker' in navigator && location.protocol.startsWith('http'))
   addEventListener('load', () => navigator.serviceWorker.register('./sw.js')
